@@ -1,0 +1,16 @@
+category,word,condition,correct_answer
+A TYPE OF GRAIN,WHEAT,target,yes
+AN INSECT,FLEA,target,yes
+A TYPE OF FOOD,BREAD,target,yes
+THINGS IN A PURSE,KEYS,target,yes
+A PLACE OF CONFINEMENT,JAIL,target,yes
+A TYPE OF SPORT,BANANA,target,no
+A TYPE OF DRINK,HAMMER,target,no
+A SCHOOL SUPPLY,TIGER,target,no
+A TYPE OF TREE,PILLOW,target,no
+A HOUSEHOLD APPLIANCE,RIVER,target,no
+A SCHOOL SUBJECT,DREM,nonword,no
+A PIECE OF FURNITURE,FROK,nonword,no
+A TYPE OF FRUIT,DELK,nonword,no
+A PROFESSION,MISK,nonword,no
+A TYPE OF VEHICLE,DELK,nonword,no
