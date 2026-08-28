@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Category Verification Study</title>
+
+  <!-- jsPsych core + plugins -->
+  <script src="https://unpkg.com/jspsych@8.0.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2.0.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-button-response@2.0.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-instructions@2.0.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-survey-html-form@2.0.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-preload@2.0.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-audio-keyboard-response@2.0.0"></script>
+  <!-- DataPipe plugin (jsPsych-contrib) -->
+  <script src="https://unpkg.com/@jspsych-contrib/plugin-pipe@0.6.0"></script>
+  <!-- CSV parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+  <link rel="stylesheet" href="https://unpkg.com/jspsych@8.0.0/css/jspsych.css">
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    .category-display {
+      font-size: 40px;
+      font-weight: bold;
+      text-align: center;
+      margin-top: 50px;
+    }
+    .word-display {
+      font-size: 48px;
+      font-weight: bold;
+      text-align: center;
+      margin-top: 50px;
+    }
+    .fixation {
+      font-size: 40px;
+      text-align: center;
+      margin-top: 50px;
+    }
+    .instructions-block {
+      max-width: 700px;
+      margin: 0 auto;
+      text-align: left;
+      font-size: 20px;
+      line-height: 1.6;
+    }
+    .consent-block {
+      max-width: 800px;
+      margin: 0 auto;
+      text-align: left;
+      font-size: 18px;
+      line-height: 1.6;
+    }
+    /* Make the jsPsych button-response buttons look like the "I Agree" / "I Do Not Agree" pair */
+    .jspsych-btn {
+      font-size: 16px;
+      padding: 8px 20px;
+      margin: 0 8px;
+    }
+  </style>
+</head>
+<body></body>
+<script src="experiment.js"></script>
+</html>
