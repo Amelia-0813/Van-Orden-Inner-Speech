@@ -10,8 +10,8 @@ const POST_RESPONSE_DELAY_MS    = 500;
 const NEXT_TRIAL_FIXATION_MS    = 500;
 const MIN_CATEGORY_GAP          = 3;
 
-// ?demo=true runs a short version: DEMO_TRIAL_COUNT random main-phase trials,
-// no upload to DataPipe/OSF, and no redirect to Qualtrics.
+// ?demo=true runs a short version (DEMO_TRIAL_COUNT random main-phase trials)
+// so the full pipeline, including the DataPipe/OSF upload, can be tested fast.
 const DEMO_TRIAL_COUNT          = 10;
 
 let KEY_YES = "x";
@@ -246,7 +246,7 @@ async function runExperiment() {
   const demoMode = /^(1|true|yes)$/i.test((urlParams.get("demo") || "").trim());
   if (demoMode) {
     const banner = document.createElement("div");
-    banner.textContent = "DEMO MODE — data is NOT saved to OSF";
+    banner.textContent = `DEMO MODE — ${DEMO_TRIAL_COUNT}-trial run`;
     banner.style.cssText =
       "position:fixed;top:0;left:0;right:0;z-index:9999;background:#b30000;color:#fff;" +
       "font:14px/1.4 Arial,Helvetica,sans-serif;text-align:center;padding:4px 8px;";
@@ -275,7 +275,6 @@ async function runExperiment() {
 
   const jsPsych = initJsPsych({
     on_finish: function () {
-      if (demoMode) return;
       const qualtricsConfigured = QUALTRICS_URL !== "REPLACE_WITH_YOUR_QUALTRICS_LINK";
       if (qualtricsConfigured) {
         const redirectURL = new URL(QUALTRICS_URL);
@@ -541,10 +540,13 @@ async function runExperiment() {
   }
 
   const datapipeConfigured = DATAPIPE_EXPERIMENT_ID !== "REPLACE_WITH_YOUR_DATAPIPE_ID";
-  const uploadData = datapipeConfigured && !demoMode;
-  const dataFilename = `${demoMode ? "demo_" : ""}${subjectID}.csv`;
+  // Demo runs get a unique, clearly-labelled filename so repeated tests don't
+  // collide with DataPipe's "filename already exists" rejection.
+  const dataFilename = demoMode
+    ? `demo_${subjectID}_${Date.now()}.csv`
+    : `${subjectID}.csv`;
 
-  if (uploadData) {
+  if (datapipeConfigured) {
     timeline.push({
       type: jsPsychPipe,
       action: "save",
@@ -612,8 +614,7 @@ async function runExperiment() {
     });
   }
 
-  const qualtricsConfigured =
-    QUALTRICS_URL !== "REPLACE_WITH_YOUR_QUALTRICS_LINK" && !demoMode;
+  const qualtricsConfigured = QUALTRICS_URL !== "REPLACE_WITH_YOUR_QUALTRICS_LINK";
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
     stimulus: qualtricsConfigured
