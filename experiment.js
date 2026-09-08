@@ -96,13 +96,17 @@ async function loadCSV(path) {
   return parsed.data;
 }
 
-function buildTrialSequence(trial, jsPsych, isPractice, trialNum) {
+function buildTrialSequence(trial, jsPsych, phase, trialNum) {
+  // phase: "practice" | "test" | "example"
+  const isPractice = phase === "practice";
+  const save = phase !== "example";
+
   const categoryScreen = {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `<div class="category-display">${trial.category}</div>`,
     choices: "NO_KEYS",
     trial_duration: CATEGORY_DURATION_MS,
-    data: { screen: "category", phase: isPractice ? "practice" : "test" },
+    data: { screen: "category", phase: phase },
   };
 
   const isiScreen = {
@@ -110,7 +114,7 @@ function buildTrialSequence(trial, jsPsych, isPractice, trialNum) {
     stimulus: `<div class="fixation">+</div>`,
     choices: "NO_KEYS",
     trial_duration: ISI_DURATION_MS,
-    data: { screen: "isi", phase: isPractice ? "practice" : "test" },
+    data: { screen: "isi", phase: phase },
   };
 
   let responseCorrect = null;
@@ -133,9 +137,9 @@ function buildTrialSequence(trial, jsPsych, isPractice, trialNum) {
     // screen simply stays up until they do.
 
     data: {
-      trialsave: true,
+      trialsave: save,
       screen: "word",
-      phase: isPractice ? "practice" : "test",
+      phase: phase,
       trial_num: trialNum,
       subjCode: SUBJECT_ID,
       category: trial.category,
@@ -206,7 +210,7 @@ function buildTrialSequence(trial, jsPsych, isPractice, trialNum) {
     stimulus: `<div class="word-display"></div>`,
     choices: "NO_KEYS",
     trial_duration: POST_RESPONSE_DELAY_MS,
-    data: { screen: "post_response_blank", phase: isPractice ? "practice" : "test" },
+    data: { screen: "post_response_blank", phase: phase },
   });
 
   sequence.push({
@@ -214,7 +218,7 @@ function buildTrialSequence(trial, jsPsych, isPractice, trialNum) {
     stimulus: `<div class="fixation">+</div>`,
     choices: "NO_KEYS",
     trial_duration: NEXT_TRIAL_FIXATION_MS,
-    data: { screen: "next_trial_fixation", phase: isPractice ? "practice" : "test" },
+    data: { screen: "next_trial_fixation", phase: phase },
   });
 
   return sequence;
@@ -282,13 +286,84 @@ async function runExperiment() {
     video: [],
   });
 
+  // Example item shown in the instructions (page 2 flow diagram and the page 5
+  // real-time example trial).
+  const EXAMPLE_TRIAL = {
+    category: "A TYPE OF FRUIT",
+    word: "APPLE",
+    condition: "example",
+    correct_answer: "yes",
+  };
+  const exampleKey = EXAMPLE_TRIAL.correct_answer === "yes" ? KEY_YES : KEY_NO;
+
+  const FLOW_STYLE = `
+    <style>
+      .flow-row {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 24px;
+        margin: 30px auto;
+        max-width: 760px;
+      }
+      .flow-col {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        max-width: 200px;
+      }
+      .flow-col .flow-label { font-size: 18px; }
+      .flow-col .flow-stim { font-size: 34px; font-weight: bold; }
+      .flow-arrow { align-self: center; padding-top: 26px; font-size: 24px; color: #888; }
+    </style>
+  `;
+
+  // Pages 1-3: welcome, the trial-flow example, and the "pay attention" note.
   timeline.push({
     type: jsPsychInstructions,
     pages: [
-      `<div class="instructions-block">
-         <h2>Welcome to the Study</h2>
-         <p>In this experiment, you will first see <strong>a category</strong> and then <strong>a word</strong>. Your task is to decide <strong>if the word belongs to the category or not</strong>.</p>
-         <p>Click "Next" to walk through some examples.</p>
+      // Page 1: Welcome
+      `<div class="instructions-block" style="text-align: center;">
+         <h2>Welcome</h2>
+         <p>Hello and welcome to the experiment!</p>
+         <p>In this experiment, you will be determining whether a word belongs to a category.</p>
+         <p>Press "Next" to continue.</p>
+       </div>`,
+
+      // Page 2: Example 1 (trial flow, left to right)
+      `<div class="instructions-block" style="text-align: center;">
+         ${FLOW_STYLE}
+         <p>Every trial will be shown with the following flow:</p>
+         <div class="flow-row">
+           <div class="flow-col">
+             <div class="flow-label">you will see a category</div>
+             <div class="flow-stim">${EXAMPLE_TRIAL.category}</div>
+           </div>
+           <div class="flow-arrow">&rarr;</div>
+           <div class="flow-col">
+             <div class="flow-label">then you will see a fixation</div>
+             <div class="flow-stim">+</div>
+           </div>
+           <div class="flow-arrow">&rarr;</div>
+           <div class="flow-col">
+             <div class="flow-label">followed by a word</div>
+             <div class="flow-stim">${EXAMPLE_TRIAL.word}</div>
+           </div>
+         </div>
+         <p>Your job is to respond as quickly and accurately as possible, using the <strong>"x"</strong> and <strong>"m"</strong> keys, whether this word does or does not belong to the category.</p>
+         <p>Press <strong>"${KEY_YES}"</strong> for "yes" and <strong>"${KEY_NO}"</strong> for "no".</p>
+         <p>In this case, you would press <strong>"${exampleKey}"</strong>.</p>
+         <p>Press "Next" to continue.</p>
+       </div>`,
+
+      // Page 3: Special note
+      `<div class="instructions-block" style="text-align: center;">
+         <h2>Pay attention!</h2>
+         <p>The word will only appear on the screen for a short period of time and will then be replaced by some X's and a question mark.</p>
+         <p>You are allowed to take as long as you need to respond, but please try to be as <strong>accurate and quick as possible</strong>.</p>
+         <p>Press "Next" for an example in real time.</p>
        </div>`,
     ],
     show_clickable_nav: true,
@@ -296,113 +371,57 @@ async function runExperiment() {
     key_backward: "ArrowLeft",
   });
 
-  // --- Interactive examples --------------------------------------------------
-  // One page per example. The parts of a trial appear left to right, one per
-  // keypress, so the page reads like the flow of an actual trial. Each stimulus
-  // panel shows the stimulus as it appears in the experiment.
-  function buildInteractiveExample({ category, word, intro, belongs, answerKey }) {
-    const mask = "X".repeat(word.length);
-
-    const panels = [
-      { caption: "Category", stim: category },
-      { caption: "Fixation", stim: "+" },
-      { caption: "Word (brief)", stim: word },
-      { caption: "Mask", stim: mask },
-      { caption: "Respond", stim: "?" },
-    ];
-
-    // First panel is visible from the start; the rest are revealed one keypress
-    // at a time (each wrapped with the arrow that precedes it).
-    const flow = panels
-      .map((p, i) => {
-        const panel =
-          `<div class="example-panel">` +
-          `<div class="example-caption">${p.caption}</div>` +
-          `<div class="example-stim">${p.stim}</div>` +
-          `</div>`;
-        if (i === 0) return panel;
-        return `<div class="example-reveal" hidden><span class="example-arrow">&rarr;</span>${panel}</div>`;
-      })
-      .join("");
-
-    const explanation = `
-      <div class="instructions-block example-explanation" hidden>
-        <p>The word is shown only briefly, then covered by the row of X's, and then a question mark appears. The question mark stays on the screen until you respond, so you always have <strong>enough time</strong> to answer.</p>
-        <p><strong>You do not have to wait for the question mark.</strong> Respond <strong>as soon as you know your answer</strong> &mdash; even while the word or the row of X's is still on the screen.</p>
-        <p>Press <strong>"${KEY_YES}"</strong> for <strong>YES</strong> and <strong>"${KEY_NO}"</strong> for <strong>NO</strong>, as quickly and accurately as you can.</p>
-        <p>In this example: is <strong>${word}</strong> ${category.toLowerCase()}? <strong>${belongs ? "Yes" : "No"}</strong> &mdash; so you would press <strong>"${answerKey}"</strong>.</p>
-      </div>`;
-
-    return [
-      {
-        type: jsPsychHtmlKeyboardResponse,
-        choices: "NO_KEYS",
-        stimulus:
-          `<div class="instructions-block">${intro}<p>Here is what one trial looks like. Press any key to step through it.</p></div>` +
-          `<div class="example-flow">${flow}</div>` +
-          explanation +
-          `<div class="instructions-block"><em id="example-prompt">Press any key to reveal the next step.</em></div>`,
-        data: { screen: "example" },
-        on_load: function () {
-          const reveals = Array.from(document.querySelectorAll(".example-reveal"));
-          const explanationEl = document.querySelector(".example-explanation");
-          const promptEl = document.getElementById("example-prompt");
-          let stage = 0;
-
-          jsPsych.pluginAPI.getKeyboardResponse({
-            callback_function: advance,
-            valid_responses: "ALL_KEYS",
-            rt_method: "performance",
-            persist: true,
-            allow_held_key: false,
-          });
-
-          function advance() {
-            if (stage < reveals.length) {
-              reveals[stage].hidden = false;
-              stage++;
-              if (stage === reveals.length) {
-                explanationEl.hidden = false;
-                promptEl.textContent = "Press any key to continue.";
-              }
-              return;
-            }
-            jsPsych.pluginAPI.cancelAllKeyboardResponses();
-            jsPsych.finishTrial();
-          }
-        },
-      },
-    ];
-  }
-
-  timeline.push(
-    ...buildInteractiveExample({
-      category: "A KIND OF FOOD",
-      word: "BEEF",
-      intro: `<p>Here is an example of what a trial will look like.</p>`,
-      belongs: true,
-      answerKey: KEY_YES,
-    })
-  );
-
+  // Page 4: intro to the real-time example
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
-    stimulus: `<div class="instructions-block"><h2>Practice</h2><p>During the practice trials only, you will hear a short sound whenever you answer incorrectly. This sound will <strong>not</strong> occur during the real experiment.</p><p>Press any key to continue.</p></div>`,
-    data: { screen: "practice_intro" },
+    stimulus: `<div class="instructions-block" style="text-align: center;">
+        <p>Now we are going to show you what one full trial looks like in real time.</p>
+        <p><strong>Remember!</strong> The word will only appear for a very short time, so pay attention. You have as long as you need to respond.</p>
+        <p>Remember to press <strong>"${KEY_YES}"</strong> for "yes" and <strong>"${KEY_NO}"</strong> for "no".</p>
+        <p>Press any key now to show the timed example of what a trial will look like.</p>
+      </div>`,
+    data: { screen: "example_intro" },
   });
 
-  // Example 2: a live practice trial. Space bar starts it.
+  // Page 5: one real-time example trial (not saved, no buzz)
+  timeline.push(...buildTrialSequence(EXAMPLE_TRIAL, jsPsych, "example", null));
+
+  // Page 6: Great job / overview of the three stages
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
-    choices: [" "],
-    stimulus: `<div class="instructions-block">
-        <h2>Let's try it out</h2>
-        <p>When you are ready, place your fingers on the <strong>"x"</strong> and <strong>"m"</strong> keys.</p>
-        <p>Remember: press <strong>"${KEY_YES}"</strong> for <strong>YES</strong> and <strong>"${KEY_NO}"</strong> for <strong>NO</strong>.</p>
-        <p>Respond <strong>as quickly and accurately as possible</strong> once the word is on the screen. The word will be replaced by a row of X's and then a question mark, but your response is still being recorded the whole time.</p>
-        <p>Press the <strong>space bar</strong> to start a practice trial. Respond as accurately and quickly as possible.</p>
+    stimulus: `<div class="instructions-block" style="text-align: center;">
+        <h2>Great job!</h2>
+        <p>Remember, place one index finger on the <strong>"x"</strong> key and your other index finger on the <strong>"m"</strong> key. Press <strong>"${KEY_YES}"</strong> for "yes" and <strong>"${KEY_NO}"</strong> for "no". Even though there are some X's and a question mark, you should respond <strong>as soon as the word shows on the screen</strong>.</p>
+        <p>There are three stages to this study:</p>
+        <p><strong>Stage 1: a practice phase</strong> so you can get used to doing the task. You will wear the headphones for this phase, and if you answer incorrectly you will hear a small buzz. If you are hearing lots of buzzes, slow down just a little.</p>
+        <p><strong>Stage 2: the experimental phase.</strong> You will not hear any more buzzes during this phase, but focus on answering as accurately and quickly as you can.</p>
+        <p><strong>Stage 3: questionnaires.</strong> The final phase will take you to some questionnaires. Take your time and answer thoughtfully.</p>
+        <p>Press any key to continue.</p>
       </div>`,
-    data: { screen: "example_try_it_out" },
+    data: { screen: "stages_overview" },
+  });
+
+  // Page 7: Final reminders. Advanced by the researcher with "q" (not shown to
+  // the participant).
+  timeline.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `<div class="instructions-block" style="text-align: center;">
+        <h2>Remember</h2>
+        <p>Press <strong>"${KEY_YES}"</strong> if the word IS a member of the previous category, and press <strong>"${KEY_NO}"</strong> if it is not.</p>
+        <p>Respond accurately and pay attention!</p>
+        <p>Please let the researcher know you have finished the instructions, and ask any questions you may have.</p>
+      </div>`,
+    choices: ["q"],
+    data: { screen: "final_reminders" },
+  });
+
+  // Page 8: shown after the researcher presses "q"; starts the practice trials.
+  timeline.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `<div class="instructions-block" style="text-align: center;">
+        <p>When you are ready to begin the practice trials, put your headphones on, place your fingers on the response keys, and press any key to start.</p>
+      </div>`,
+    data: { screen: "start_practice" },
   });
 
   timeline.push({
@@ -414,18 +433,22 @@ async function runExperiment() {
   });
 
   practiceTrials.forEach((trial, i) => {
-    timeline.push(...buildTrialSequence(trial, jsPsych, true, i + 1));
+    timeline.push(...buildTrialSequence(trial, jsPsych, "practice", i + 1));
   });
 
+  // End of practice -> Stage 2. Advanced by the researcher with "q".
+  // (This transition is not part of the written instructions doc.)
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
-    stimulus: `<div class="instructions-block">
-        <h2>Great job!</h2>
-        <p>You have finished the practice trials. Now the real experiment will begin.</p>
-        <p><strong>Remember: press "${KEY_YES}" for yes, "${KEY_NO}" for no.</strong><br><strong>Respond as quickly and accurately as possible.</strong></p>
-        <p>Please let the experimenter know when you are ready to begin.</p>
+    stimulus: `<div class="instructions-block" style="text-align: center;">
+        <h2>End of practice</h2>
+        <p>You have finished the practice phase. You can now take your headphones off for the rest of the task.</p>
+        <p><strong>Stage 2, the experimental phase, will begin next.</strong> There will be no more buzzes. Keep answering as accurately and quickly as you can.</p>
+        <p>Remember: press <strong>"${KEY_YES}"</strong> for "yes" and <strong>"${KEY_NO}"</strong> for "no", and respond as soon as the word shows on the screen.</p>
+        <p>Please let the researcher know when you are ready to begin.</p>
       </div>`,
     choices: ["q"],
+    data: { screen: "practice_to_test" },
   });
 
   timeline.push({
@@ -437,7 +460,7 @@ async function runExperiment() {
   });
 
   mainTrials.forEach((trial, i) => {
-    timeline.push(...buildTrialSequence(trial, jsPsych, false, i + 1));
+    timeline.push(...buildTrialSequence(trial, jsPsych, "test", i + 1));
   });
 
   // One row per trial, only the columns we care about, in a fixed order.
