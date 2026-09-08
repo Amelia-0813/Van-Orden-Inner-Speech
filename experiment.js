@@ -12,6 +12,7 @@ const MIN_CATEGORY_GAP          = 3;
 
 let KEY_YES = "x";
 let KEY_NO  = "m";
+let SUBJECT_ID = "";
 
 const FEEDBACK_AUDIO = "buzz.wav";
 
@@ -95,7 +96,7 @@ async function loadCSV(path) {
   return parsed.data;
 }
 
-function buildTrialSequence(trial, jsPsych, isPractice) {
+function buildTrialSequence(trial, jsPsych, isPractice, trialNum) {
   const categoryScreen = {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `<div class="category-display">${trial.category}</div>`,
@@ -118,7 +119,7 @@ function buildTrialSequence(trial, jsPsych, isPractice) {
     ? PRACTICE_WORD_DURATION_MS
     : WORD_DURATION_MS;
   const maskOnsetMs = wordDurationForThisTrial;
-  const responseWindowOnsetMs = wordDurationForThisTrial + MASK_DURATION_MS;
+  const questionMarkOnsetMs = wordDurationForThisTrial + MASK_DURATION_MS;
 
   const wordScreen = {
     type: jsPsychHtmlKeyboardResponse,
@@ -126,49 +127,61 @@ function buildTrialSequence(trial, jsPsych, isPractice) {
 
     choices: "NO_KEYS",
 
+    // No trial_duration: there is no response deadline. The key listener is
+    // armed the instant the target word appears and the first valid keypress
+    // ends the trial. If the participant has not responded, the question-mark
+    // screen simply stays up until they do.
+
     data: {
+      trialsave: true,
       screen: "word",
       phase: isPractice ? "practice" : "test",
+      trial_num: trialNum,
+      subjCode: SUBJECT_ID,
       category: trial.category,
       word: trial.word,
       condition: trial.condition,
-      correct_answer: trial.correct_answer,
-      word_duration_ms: wordDurationForThisTrial,
-      mask_duration_ms: MASK_DURATION_MS,
+      yes_key: KEY_YES,
+      correct_response: trial.correct_answer,
     },
     on_load: function () {
+      // RT is measured from the moment the target word is shown.
       const wordOnsetTime = performance.now();
       const maskString = "X".repeat(trial.word.length);
       const el = document.getElementById("word-stim");
 
-      setTimeout(() => {
+      // Visual sequence only: target word -> mask -> question mark.
+      // These swaps do NOT gate responses. (pluginAPI.setTimeout handles are
+      // cleared automatically when the trial ends.)
+      jsPsych.pluginAPI.setTimeout(() => {
         if (el) el.innerHTML = maskString;
       }, maskOnsetMs);
 
-      setTimeout(() => {
+      jsPsych.pluginAPI.setTimeout(() => {
         if (el) el.innerHTML = '<span class="response-window">?</span>';
+      }, questionMarkOnsetMs);
 
-        jsPsych.pluginAPI.getKeyboardResponse({
-          callback_function: (info) => {
-            const rt = Math.round(performance.now() - wordOnsetTime);
-            jsPsych.finishTrial({ response: info.key, rt: rt });
-          },
-          valid_responses: [KEY_YES, KEY_NO],
-          rt_method: "performance",
-          persist: false,
-          allow_held_key: false,
-        });
-      }, responseWindowOnsetMs);
+      // Response window opens immediately at word onset. Whatever is on screen
+      // when the participant responds, the first valid key records RT (from
+      // word onset) and ends the trial.
+      jsPsych.pluginAPI.getKeyboardResponse({
+        callback_function: (info) => {
+          const rt = Math.round(performance.now() - wordOnsetTime);
+          jsPsych.finishTrial({ response: info.key, rt: rt });
+        },
+        valid_responses: [KEY_YES, KEY_NO],
+        rt_method: "performance",
+        persist: false,
+        allow_held_key: false,
+      });
     },
     on_finish: function (data) {
       let given = null;
       if (data.response === KEY_YES) given = "yes";
       else if (data.response === KEY_NO) given = "no";
-      data.given_answer = given;
-      data.correct = given === trial.correct_answer;
-      data.no_response = data.response === null;
+      data.correct = given === trial.correct_answer ? 1 : 0;
 
-      responseCorrect = data.correct;
+      responseCorrect = data.correct === 1;
     },
   };
 
@@ -242,11 +255,14 @@ async function runExperiment() {
     on_finish: function () {
       const qualtricsConfigured = QUALTRICS_URL !== "REPLACE_WITH_YOUR_QUALTRICS_LINK";
       if (qualtricsConfigured) {
-        window.location = `${QUALTRICS_URL}?subjCode=${encodeURIComponent(subjectID)}`;
+        const redirectURL = new URL(QUALTRICS_URL);
+        redirectURL.searchParams.set("subjCode", subjectID);
+        window.location = redirectURL.toString();
       }
     },
   });
 
+  SUBJECT_ID = subjectID;
   jsPsych.data.addProperties({ subject_id: subjectID, key_mapping: keyMappingLabel });
 
   const [practiceRaw, mainRaw] = await Promise.all([
@@ -353,8 +369,8 @@ async function runExperiment() {
     data: { screen: "next_trial_fixation", phase: "practice" },
   });
 
-  practiceTrials.forEach((trial) => {
-    timeline.push(...buildTrialSequence(trial, jsPsych, true));
+  practiceTrials.forEach((trial, i) => {
+    timeline.push(...buildTrialSequence(trial, jsPsych, true, i + 1));
   });
 
   timeline.push({
@@ -376,9 +392,30 @@ async function runExperiment() {
     data: { screen: "next_trial_fixation", phase: "test" },
   });
 
-  mainTrials.forEach((trial) => {
-    timeline.push(...buildTrialSequence(trial, jsPsych, false));
+  mainTrials.forEach((trial, i) => {
+    timeline.push(...buildTrialSequence(trial, jsPsych, false, i + 1));
   });
+
+  // One row per trial, only the columns we care about, in a fixed order.
+  function buildCleanCSV() {
+    const rows = jsPsych.data
+      .get()
+      .filter({ trialsave: true })
+      .trials.map((t) => ({
+        subjCode: t.subjCode,
+        phase: t.phase,
+        trial_num: t.trial_num,
+        category: t.category,
+        word: t.word,
+        condition: t.condition,
+        yes_key: t.yes_key,
+        response: t.response,          // raw key pressed ("x" / "m")
+        correct_response: t.correct_response,
+        correct: t.correct,            // 1 = matched correct_response, 0 = did not
+        rt: t.rt,                      // ms from target-word onset to keypress
+      }));
+    return Papa.unparse(rows);
+  }
 
   const datapipeConfigured = DATAPIPE_EXPERIMENT_ID !== "REPLACE_WITH_YOUR_DATAPIPE_ID";
 
@@ -388,7 +425,7 @@ async function runExperiment() {
       action: "save",
       experiment_id: DATAPIPE_EXPERIMENT_ID,
       filename: `${subjectID}.csv`,
-      data_string: () => jsPsych.data.get().csv(),
+      data_string: () => buildCleanCSV(),
     });
   } else {
     timeline.push({
@@ -397,7 +434,16 @@ async function runExperiment() {
       choices: "NO_KEYS",
       trial_duration: 1500,
       on_start: function () {
-        jsPsych.data.get().localSave("csv", `${subjectID}.csv`);
+        const csv = buildCleanCSV();
+        const blob = new Blob([csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${subjectID}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
       },
     });
   }
