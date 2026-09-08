@@ -345,7 +345,7 @@ async function runExperiment() {
           <p>Every trial will have the following flow:</p>
           <div class="flow-row">
             <div class="flow-col">
-              <div class="flow-label">yYou will see <strong>a category</strong></div>
+              <div class="flow-label">You will see <strong>a category</strong></div>
               <div class="flow-stim">${EXAMPLE_TRIAL.category}</div>
             </div>
             <div class="flow-arrow">&rarr;</div>
@@ -404,7 +404,8 @@ async function runExperiment() {
     stimulus: `
       <div class="instructions-block">
         <h2>Great job!</h2>
-        <p>Remember, place one index finger on the <strong>"x"</strong> key and your other index finger on the <strong>"m"</strong> key. Press <strong>"${KEY_YES}"</strong> for "yes" and <strong>"${KEY_NO}"</strong> for "no". </p>
+        <p>Remember, place one index finger on the <strong>"x"</strong> key and your other index finger on the <strong>"m"</strong> key. </p>
+        <p>Press <strong>"${KEY_YES}"</strong> for "yes" and <strong>"${KEY_NO}"</strong> for "no". </p>
         <p>There are three stages to this study:</p>
         <p><strong>Stage 1: Practice phase</strong> so you can get used to doing the task. You will wear the headphones for this phase, and if you answer incorrectly you will hear a small buzz. If you are hearing lots of buzzes, slow down just a little.</p>
         <p><strong>Stage 2: Experimental phase.</strong> You will not hear any more buzzes during this phase, but focus on answering as accurately and quickly as you can.</p>
