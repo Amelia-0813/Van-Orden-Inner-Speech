@@ -282,59 +282,13 @@ async function runExperiment() {
     video: [],
   });
 
-  const EXAMPLE_BOX_STYLE = `
-    <style>
-      .example-trial-stack {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 16px;
-        margin: 20px auto;
-        max-width: 400px;
-      }
-      .example-trial-stack .example-box {
-        width: 100%;
-        box-sizing: border-box;
-        border: 2px solid #333;
-        border-radius: 8px;
-        padding: 24px 20px;
-        text-align: center;
-      }
-    </style>
-  `;
-
   timeline.push({
     type: jsPsychInstructions,
     pages: [
       `<div class="instructions-block">
          <h2>Welcome to the Study</h2>
-         <p>In this experiment, you will first see <strong>a category</strong> and then <strong>a word</strong>. Your task is to decide <strong>if the word belongs to a category or not</strong>.</p>
-         <p>Click "Next" to see some examples.</p>
-       </div>`,
-
-      `<div class="instructions-block">
-         ${EXAMPLE_BOX_STYLE}
-         <p>You will first see a category and then a word. Your task is to decide if the word belongs to a category or not.</p>
-         <p>For example, you will first see a category like this:</p>
-         <div class="example-trial-stack">
-           <div class="example-box category-display">A kind of food</div>
-         </div>
-         <p>and then you will see a word:</p>
-         <div class="example-trial-stack">
-           <div class="example-box word-display">beef</div>
-         </div>
-         <p>You should press <strong>"${KEY_YES}"</strong> to indicate <strong>"yes"</strong>.</p>
-       </div>`,
-
-      `<div class="instructions-block">
-         ${EXAMPLE_BOX_STYLE}
-         <p>You will first see a category and then a word. Your task is to decide if the word belongs to a category or not.</p>
-         <p>Let's see another example.</p>
-         <div class="example-trial-stack">
-           <div class="example-box category-display">A part of lion's body</div>
-           <div class="example-box word-display">pause</div>
-         </div>
-         <p>You should press <strong>"${KEY_NO}"</strong> to indicate <strong>"no"</strong>.</p>
+         <p>In this experiment, you will first see <strong>a category</strong> and then <strong>a word</strong>. Your task is to decide <strong>if the word belongs to the category or not</strong>.</p>
+         <p>Click "Next" to walk through some examples.</p>
        </div>`,
     ],
     show_clickable_nav: true,
@@ -342,12 +296,91 @@ async function runExperiment() {
     key_backward: "ArrowLeft",
   });
 
+  // --- Interactive examples --------------------------------------------------
+  // Each example walks through the parts of a real trial one keypress at a
+  // time, showing every screen exactly as it appears in the experiment.
+  function buildInteractiveExample({ category, word, intro, belongs, answerKey }) {
+    const mask = "X".repeat(word.length);
+    const anyKey = `<p><em>Press any key to continue.</em></p>`;
+    const below = (html) =>
+      `<div class="instructions-block" style="margin-top: 60px;">${html}</div>`;
+
+    return [
+      {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus:
+          `<div class="category-display">${category}</div>` +
+          below(`${intro}<p>First, you will see a category, like this.</p>${anyKey}`),
+        data: { screen: "example_category" },
+      },
+      {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus:
+          `<div class="fixation">+</div>` +
+          below(`<p>Next, you will see a fixation cross.</p>${anyKey}`),
+        data: { screen: "example_fixation" },
+      },
+      {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus:
+          `<div class="word-display">${word}</div>` +
+          below(`<p>Then the word appears &mdash; but only for a moment.</p>${anyKey}`),
+        data: { screen: "example_word" },
+      },
+      {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus:
+          `<div class="word-display">${mask}</div>` +
+          below(`<p>The word is then quickly covered up by a row of X's.</p>${anyKey}`),
+        data: { screen: "example_mask" },
+      },
+      {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus:
+          `<div class="word-display">?</div>` +
+          below(
+            `<p>Then a question mark appears. It stays on the screen until you respond, so you always have <strong>enough time</strong> to answer.</p>
+             <p><strong>You do not have to wait for the question mark.</strong> Respond <strong>as soon as you know your answer</strong> &mdash; even while the word or the row of X's is still on the screen.</p>${anyKey}`
+          ),
+        data: { screen: "example_prompt" },
+      },
+      {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: below(
+          `<p>Decide whether the word belonged to the category, and respond <strong>as quickly and accurately as you can</strong>.</p>
+           <p>Press <strong>"${KEY_YES}"</strong> for <strong>YES</strong> and <strong>"${KEY_NO}"</strong> for <strong>NO</strong>.</p>
+           <p>In this example: is <strong>${word}</strong> ${category.toLowerCase()}? <strong>${belongs ? "Yes" : "No"}</strong> &mdash; so you would press <strong>"${answerKey}"</strong>.</p>${anyKey}`
+        ),
+        data: { screen: "example_answer" },
+      },
+    ];
+  }
+
+  timeline.push(
+    ...buildInteractiveExample({
+      category: "A KIND OF FOOD",
+      word: "BEEF",
+      intro: `<p>Here is an example of what a trial will look like.</p>`,
+      belongs: true,
+      answerKey: KEY_YES,
+    })
+  );
+
+  timeline.push(
+    ...buildInteractiveExample({
+      category: "A PART OF A LION'S BODY",
+      word: "PAUSE",
+      intro: `<p>Here is one more example.</p>`,
+      belongs: false,
+      answerKey: KEY_NO,
+    })
+  );
+
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `<div class="instructions-block">
         <p><strong>Respond as accurately and quickly as possible!</strong></p>
-        <p>There is a limited time to respond. So make sure you click your answer quickly.</p>
-        <p>If you do not respond within the time window, your answer will be counted as incorrect.</p>
+        <p>You do not have to wait for the question mark &mdash; respond as soon as you know your answer. The question mark stays on the screen until you respond, so you always have enough time to answer.</p>
         <p>Please place your <strong>left index finger</strong> on the <strong>"x"</strong> key and your <strong>right index finger</strong> on the <strong>"m"</strong> key for the whole experiment.</p>
         <p>You will start with some <strong>practice trials</strong>. Then you will move into the <strong>experiment</strong>. Finally, you will complete a <strong>questionnaire</strong>.</p>
         <p><strong>Remember! Press "${KEY_YES}" if the word IS a member of the category and "${KEY_NO}" if it is NOT.</strong></p>
