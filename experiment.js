@@ -10,6 +10,10 @@ const POST_RESPONSE_DELAY_MS    = 500;
 const NEXT_TRIAL_FIXATION_MS    = 500;
 const MIN_CATEGORY_GAP          = 3;
 
+// ?demo=true runs a short version: DEMO_TRIAL_COUNT random main-phase trials,
+// no upload to DataPipe/OSF, and no redirect to Qualtrics.
+const DEMO_TRIAL_COUNT          = 10;
+
 let KEY_YES = "x";
 let KEY_NO  = "m";
 let SUBJECT_ID = "";
@@ -239,6 +243,16 @@ async function runExperiment() {
     subjectID = "S" + Math.floor(Math.random() * 1e9);
   }
 
+  const demoMode = /^(1|true|yes)$/i.test((urlParams.get("demo") || "").trim());
+  if (demoMode) {
+    const banner = document.createElement("div");
+    banner.textContent = "DEMO MODE — data is NOT saved to OSF";
+    banner.style.cssText =
+      "position:fixed;top:0;left:0;right:0;z-index:9999;background:#b30000;color:#fff;" +
+      "font:14px/1.4 Arial,Helvetica,sans-serif;text-align:center;padding:4px 8px;";
+    document.body.appendChild(banner);
+  }
+
   const seed = hashStringToSeed(subjectID);
   const rng = mulberry32(seed);
 
@@ -261,6 +275,7 @@ async function runExperiment() {
 
   const jsPsych = initJsPsych({
     on_finish: function () {
+      if (demoMode) return;
       const qualtricsConfigured = QUALTRICS_URL !== "REPLACE_WITH_YOUR_QUALTRICS_LINK";
       if (qualtricsConfigured) {
         const redirectURL = new URL(QUALTRICS_URL);
@@ -279,7 +294,15 @@ async function runExperiment() {
   ]);
 
   const practiceTrials = seededShuffle(practiceRaw, rng);
-  const mainTrials = seededInterleaveByCategory(mainRaw, rng, MIN_CATEGORY_GAP);
+  let mainTrials = seededInterleaveByCategory(mainRaw, rng, MIN_CATEGORY_GAP);
+
+  if (demoMode) {
+    // A random subset of the main trials, kept category-spaced.
+    const demoSubset = new Set(
+      seededShuffle(mainRaw, rng).slice(0, DEMO_TRIAL_COUNT)
+    );
+    mainTrials = mainTrials.filter((t) => demoSubset.has(t));
+  }
 
   const timeline = [];
 
@@ -505,38 +528,92 @@ async function runExperiment() {
     return Papa.unparse(rows);
   }
 
-  const datapipeConfigured = DATAPIPE_EXPERIMENT_ID !== "REPLACE_WITH_YOUR_DATAPIPE_ID";
+  function downloadCSV(filename) {
+    const blob = new Blob([buildCleanCSV()], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 
-  if (datapipeConfigured) {
+  const datapipeConfigured = DATAPIPE_EXPERIMENT_ID !== "REPLACE_WITH_YOUR_DATAPIPE_ID";
+  const uploadData = datapipeConfigured && !demoMode;
+  const dataFilename = `${demoMode ? "demo_" : ""}${subjectID}.csv`;
+
+  if (uploadData) {
     timeline.push({
       type: jsPsychPipe,
       action: "save",
       experiment_id: DATAPIPE_EXPERIMENT_ID,
-      filename: `${subjectID}.csv`,
+      filename: dataFilename,
       data_string: () => buildCleanCSV(),
+      on_finish: function (data) {
+        // The DataPipe plugin never throws on a rejected upload, so inspect the
+        // server response and fall back to a local download if it failed.
+        console.log("[DataPipe] save response:", JSON.stringify(data));
+        const msg = String(
+          (data && (data.message || data.error || data.result)) || ""
+        ).toLowerCase();
+        const looksOk =
+          data &&
+          !data.error &&
+          data.success !== false &&
+          (data.message !== undefined || data.result !== undefined) &&
+          !/error|fail|not accepting|exceed|invalid|denied|missing/.test(msg);
+        if (!looksOk) {
+          console.error(
+            "[DataPipe] upload did NOT succeed — downloading a local backup instead. " +
+              "Check: (1) data collection is enabled for this experiment on pipe.jspsych.org, " +
+              "(2) the OSF component is still linked, (3) this filename was not already uploaded, " +
+              "(4) the session limit has not been reached."
+          );
+          data.datapipe_failed = true;
+          try {
+            downloadCSV(`BACKUP_${dataFilename}`);
+          } catch (e) {
+            console.error("[DataPipe] local backup also failed:", e);
+          }
+        }
+      },
+    });
+
+    // Shown only if the upload above failed.
+    timeline.push({
+      timeline: [
+        {
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: `<div class="instructions-block"><p>We could not upload your data automatically. A copy has been saved to this computer's downloads folder. Please let the researcher know.</p></div>`,
+          choices: "NO_KEYS",
+          trial_duration: 5000,
+        },
+      ],
+      conditional_function: function () {
+        const last = jsPsych.data.get().last(1).trials[0];
+        return Boolean(last && last.datapipe_failed);
+      },
     });
   } else {
     timeline.push({
       type: jsPsychHtmlKeyboardResponse,
-      stimulus: `<div class="instructions-block"><p>(DataPipe is not configured yet — saving a local copy of the data to your downloads folder instead.)</p></div>`,
+      stimulus: `<div class="instructions-block"><p>(Saving a local copy of the data to your downloads folder.)</p></div>`,
       choices: "NO_KEYS",
       trial_duration: 1500,
       on_start: function () {
-        const csv = buildCleanCSV();
-        const blob = new Blob([csv], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${subjectID}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        try {
+          downloadCSV(dataFilename);
+        } catch (e) {
+          console.error("Local save failed:", e);
+        }
       },
     });
   }
 
-  const qualtricsConfigured = QUALTRICS_URL !== "REPLACE_WITH_YOUR_QUALTRICS_LINK";
+  const qualtricsConfigured =
+    QUALTRICS_URL !== "REPLACE_WITH_YOUR_QUALTRICS_LINK" && !demoMode;
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
     stimulus: qualtricsConfigured
