@@ -297,61 +297,80 @@ async function runExperiment() {
   });
 
   // --- Interactive examples --------------------------------------------------
-  // Each example walks through the parts of a real trial one keypress at a
-  // time, showing every screen exactly as it appears in the experiment.
+  // One page per example. The parts of a trial appear left to right, one per
+  // keypress, so the page reads like the flow of an actual trial. Each stimulus
+  // panel shows the stimulus as it appears in the experiment.
   function buildInteractiveExample({ category, word, intro, belongs, answerKey }) {
     const mask = "X".repeat(word.length);
-    const anyKey = `<p><em>Press any key to continue.</em></p>`;
-    const below = (html) =>
-      `<div class="instructions-block" style="margin-top: 60px;">${html}</div>`;
+
+    const panels = [
+      { caption: "Category", stim: category },
+      { caption: "Fixation", stim: "+" },
+      { caption: "Word (brief)", stim: word },
+      { caption: "Mask", stim: mask },
+      { caption: "Respond", stim: "?" },
+    ];
+
+    // First panel is visible from the start; the rest are revealed one keypress
+    // at a time (each wrapped with the arrow that precedes it).
+    const flow = panels
+      .map((p, i) => {
+        const panel =
+          `<div class="example-panel">` +
+          `<div class="example-caption">${p.caption}</div>` +
+          `<div class="example-stim">${p.stim}</div>` +
+          `</div>`;
+        if (i === 0) return panel;
+        return `<div class="example-reveal" hidden><span class="example-arrow">&rarr;</span>${panel}</div>`;
+      })
+      .join("");
+
+    const explanation = `
+      <div class="instructions-block example-explanation" hidden>
+        <p>The word is shown only briefly, then covered by the row of X's, and then a question mark appears. The question mark stays on the screen until you respond, so you always have <strong>enough time</strong> to answer.</p>
+        <p><strong>You do not have to wait for the question mark.</strong> Respond <strong>as soon as you know your answer</strong> &mdash; even while the word or the row of X's is still on the screen.</p>
+        <p>Press <strong>"${KEY_YES}"</strong> for <strong>YES</strong> and <strong>"${KEY_NO}"</strong> for <strong>NO</strong>, as quickly and accurately as you can.</p>
+        <p>In this example: is <strong>${word}</strong> ${category.toLowerCase()}? <strong>${belongs ? "Yes" : "No"}</strong> &mdash; so you would press <strong>"${answerKey}"</strong>.</p>
+      </div>`;
 
     return [
       {
         type: jsPsychHtmlKeyboardResponse,
+        choices: "NO_KEYS",
         stimulus:
-          `<div class="category-display">${category}</div>` +
-          below(`${intro}<p>First, you will see a category, like this.</p>${anyKey}`),
-        data: { screen: "example_category" },
-      },
-      {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus:
-          `<div class="fixation">+</div>` +
-          below(`<p>Next, you will see a fixation cross.</p>${anyKey}`),
-        data: { screen: "example_fixation" },
-      },
-      {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus:
-          `<div class="word-display">${word}</div>` +
-          below(`<p>Then the word appears &mdash; but only for a moment.</p>${anyKey}`),
-        data: { screen: "example_word" },
-      },
-      {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus:
-          `<div class="word-display">${mask}</div>` +
-          below(`<p>The word is then quickly covered up by a row of X's.</p>${anyKey}`),
-        data: { screen: "example_mask" },
-      },
-      {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus:
-          `<div class="word-display">?</div>` +
-          below(
-            `<p>Then a question mark appears. It stays on the screen until you respond, so you always have <strong>enough time</strong> to answer.</p>
-             <p><strong>You do not have to wait for the question mark.</strong> Respond <strong>as soon as you know your answer</strong> &mdash; even while the word or the row of X's is still on the screen.</p>${anyKey}`
-          ),
-        data: { screen: "example_prompt" },
-      },
-      {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus: below(
-          `<p>Decide whether the word belonged to the category, and respond <strong>as quickly and accurately as you can</strong>.</p>
-           <p>Press <strong>"${KEY_YES}"</strong> for <strong>YES</strong> and <strong>"${KEY_NO}"</strong> for <strong>NO</strong>.</p>
-           <p>In this example: is <strong>${word}</strong> ${category.toLowerCase()}? <strong>${belongs ? "Yes" : "No"}</strong> &mdash; so you would press <strong>"${answerKey}"</strong>.</p>${anyKey}`
-        ),
-        data: { screen: "example_answer" },
+          `<div class="instructions-block">${intro}<p>Here is what one trial looks like. Press any key to step through it.</p></div>` +
+          `<div class="example-flow">${flow}</div>` +
+          explanation +
+          `<div class="instructions-block"><em id="example-prompt">Press any key to reveal the next step.</em></div>`,
+        data: { screen: "example" },
+        on_load: function () {
+          const reveals = Array.from(document.querySelectorAll(".example-reveal"));
+          const explanationEl = document.querySelector(".example-explanation");
+          const promptEl = document.getElementById("example-prompt");
+          let stage = 0;
+
+          jsPsych.pluginAPI.getKeyboardResponse({
+            callback_function: advance,
+            valid_responses: "ALL_KEYS",
+            rt_method: "performance",
+            persist: true,
+            allow_held_key: false,
+          });
+
+          function advance() {
+            if (stage < reveals.length) {
+              reveals[stage].hidden = false;
+              stage++;
+              if (stage === reveals.length) {
+                explanationEl.hidden = false;
+                promptEl.textContent = "Press any key to continue.";
+              }
+              return;
+            }
+            jsPsych.pluginAPI.cancelAllKeyboardResponses();
+            jsPsych.finishTrial();
+          }
+        },
       },
     ];
   }
@@ -366,32 +385,24 @@ async function runExperiment() {
     })
   );
 
-  timeline.push(
-    ...buildInteractiveExample({
-      category: "A PART OF A LION'S BODY",
-      word: "PAUSE",
-      intro: `<p>Here is one more example.</p>`,
-      belongs: false,
-      answerKey: KEY_NO,
-    })
-  );
-
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
-    stimulus: `<div class="instructions-block">
-        <p><strong>Respond as accurately and quickly as possible!</strong></p>
-        <p>You do not have to wait for the question mark &mdash; respond as soon as you know your answer. The question mark stays on the screen until you respond, so you always have enough time to answer.</p>
-        <p>Please place your <strong>left index finger</strong> on the <strong>"x"</strong> key and your <strong>right index finger</strong> on the <strong>"m"</strong> key for the whole experiment.</p>
-        <p>You will start with some <strong>practice trials</strong>. Then you will move into the <strong>experiment</strong>. Finally, you will complete a <strong>questionnaire</strong>.</p>
-        <p><strong>Remember! Press "${KEY_YES}" if the word IS a member of the category and "${KEY_NO}" if it is NOT.</strong></p>
-        <p>Please let the experimenter know when you are ready to begin.</p>
-      </div>`,
-    data: { screen: "instructions_final" },
+    stimulus: `<div class="instructions-block"><h2>Practice</h2><p>During the practice trials only, you will hear a short sound whenever you answer incorrectly. This sound will <strong>not</strong> occur during the real experiment.</p><p>Press any key to continue.</p></div>`,
+    data: { screen: "practice_intro" },
   });
 
+  // Example 2: a live practice trial. Space bar starts it.
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
-    stimulus: `<div class="instructions-block"><h2>Practice</h2><p>During these practice trials, you will hear a sound whenever you answer incorrectly. This feedback sound will <strong>not</strong> occur during the real experiment.</p><p>Press any key to begin the practice trials.</p></div>`,
+    choices: [" "],
+    stimulus: `<div class="instructions-block">
+        <h2>Let's try it out</h2>
+        <p>When you are ready, place your fingers on the <strong>"x"</strong> and <strong>"m"</strong> keys.</p>
+        <p>Remember: press <strong>"${KEY_YES}"</strong> for <strong>YES</strong> and <strong>"${KEY_NO}"</strong> for <strong>NO</strong>.</p>
+        <p>Respond <strong>as quickly and accurately as possible</strong> once the word is on the screen. The word will be replaced by a row of X's and then a question mark, but your response is still being recorded the whole time.</p>
+        <p>Press the <strong>space bar</strong> to start a practice trial. Respond as accurately and quickly as possible.</p>
+      </div>`,
+    data: { screen: "example_try_it_out" },
   });
 
   timeline.push({
