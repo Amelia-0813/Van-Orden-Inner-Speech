@@ -515,9 +515,9 @@ async function runExperiment() {
         subjCode: t.subjCode,
         phase: t.phase,
         trial_num: t.trial_num,
+        trial_type: t.condition,       // target / E1-E4 / *_homophone / *_spelling / Filler / nonword
         category: t.category,
         word: t.word,
-        condition: t.condition,
         yes_key: t.yes_key,
         response: t.response,          // raw key pressed ("x" / "m")
         correct_response: t.correct_response,
