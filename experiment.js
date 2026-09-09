@@ -99,26 +99,6 @@ async function loadCSV(path) {
   return parsed.data;
 }
 
-// Plays the preloaded feedback buzz immediately, from inside the keypress
-// handler, so there is no audible gap between the wrong key and the sound.
-function playFeedbackBuzz(jsPsych, buffer) {
-  try {
-    const ctx = jsPsych.pluginAPI.audioContext();
-    if (ctx && buffer && typeof AudioBuffer !== "undefined" && buffer instanceof AudioBuffer) {
-      if (ctx.state === "suspended") ctx.resume();
-      const src = ctx.createBufferSource();
-      src.buffer = buffer;
-      src.connect(ctx.destination);
-      src.start();
-    } else if (buffer && typeof buffer.play === "function") {
-      buffer.currentTime = 0;
-      buffer.play();
-    }
-  } catch (e) {
-    console.error("Feedback buzz playback failed:", e);
-  }
-}
-
 function buildTrialSequence(trial, jsPsych, phase, trialNum) {
   // phase: "practice" | "test" | "example"
   const isPractice = phase === "practice";
@@ -175,13 +155,13 @@ function buildTrialSequence(trial, jsPsych, phase, trialNum) {
       const maskString = "X".repeat(trial.word.length);
       const el = document.getElementById("word-stim");
 
-      // Grab the already-preloaded buzz buffer now so a wrong-answer sound can
+      // Grab the already-preloaded buzz player now so a wrong-answer sound can
       // be fired synchronously from the keypress handler during practice.
-      let buzzBuffer = null;
+      let buzzPlayer = null;
       if (isPractice) {
         jsPsych.pluginAPI
-          .getAudioBuffer(FEEDBACK_AUDIO)
-          .then((buf) => { buzzBuffer = buf; })
+          .getAudioPlayer(FEEDBACK_AUDIO)
+          .then((player) => { buzzPlayer = player; })
           .catch(() => {});
       }
 
@@ -206,8 +186,12 @@ function buildTrialSequence(trial, jsPsych, phase, trialNum) {
             info.key === KEY_YES ? "yes" : info.key === KEY_NO ? "no" : null;
 
           // Practice feedback: play the buzz the instant a wrong key lands.
-          if (isPractice && given !== trial.correct_answer) {
-            playFeedbackBuzz(jsPsych, buzzBuffer);
+          if (isPractice && given !== trial.correct_answer && buzzPlayer) {
+            try {
+              buzzPlayer.play();
+            } catch (e) {
+              console.error("Feedback buzz playback failed:", e);
+            }
           }
 
           jsPsych.finishTrial({ response: info.key, rt: rt });
@@ -499,9 +483,9 @@ async function runExperiment() {
         <p>Remember, place one index finger on the <strong>"x"</strong> key and your other index finger on the <strong>"m"</strong> key. </p>
         <p>Press <strong>"${KEY_YES}"</strong> for "yes" and <strong>"${KEY_NO}"</strong> for "no". </p>
         <p>There are three stages to this study:</p>
-        <p><strong>Stage 1: Practice phase</strong> so you can get used to doing the task. You will wear the headphones for this phase, and if you answer incorrectly you will hear a small buzz. If you are hearing lots of buzzes, slow down just a little.</p>
-        <p><strong>Stage 2: Experimental phase.</strong> You will not hear any more buzzes during this phase, but focus on answering as accurately and quickly as you can.</p>
-        <p><strong>Stage 3: Questionnaires.</strong> The final phase will take you to some questionnaires. Take your time and answer thoughtfully.</p>
+        <p><strong>Stage 1: Practice phase</strong> so you can get used to doing the task. You will wear the headphones for this phase, and <strong>if you answer incorrectly you will hear a small buzz </strong>. If you are hearing lots of buzzes, slow down just a little.</p>
+        <p><strong>Stage 2: Experimental phase.You will not hear any more buzzes during this phase</strong>, but focus on answering as accurately and quickly as you can.</p>
+        <p><strong>Stage 3: Questionnaires.</strong> The final phase will take you to some questionnaires. <strong>Take your time and answer thoughtfully.</strong></p>
         <p>Press any key to continue.</p>
       </div>
     `,
