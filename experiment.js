@@ -99,6 +99,41 @@ async function loadCSV(path) {
   return parsed.data;
 }
 
+// Feedback buzz. Decoded once into our own Web Audio buffer; a fresh one-shot
+// source is created for every play, so it fires on every practice trial with no
+// gap after the keypress. initFeedbackBuzz() must run inside a user gesture (the
+// setup "Start" click) so the AudioContext starts unlocked.
+let buzzContext = null;
+let buzzBuffer = null;
+
+function initFeedbackBuzz() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    buzzContext = new AudioCtx();
+    fetch(FEEDBACK_AUDIO)
+      .then((r) => r.arrayBuffer())
+      .then((data) => buzzContext.decodeAudioData(data))
+      .then((decoded) => { buzzBuffer = decoded; })
+      .catch((e) => console.error("Could not load the feedback buzz:", e));
+  } catch (e) {
+    console.error("Could not set up the feedback buzz:", e);
+  }
+}
+
+function playFeedbackBuzz() {
+  if (!buzzContext || !buzzBuffer) return;
+  try {
+    if (buzzContext.state === "suspended") buzzContext.resume();
+    const source = buzzContext.createBufferSource();
+    source.buffer = buzzBuffer;
+    source.connect(buzzContext.destination);
+    source.start();
+  } catch (e) {
+    console.error("Feedback buzz playback failed:", e);
+  }
+}
+
 function buildTrialSequence(trial, jsPsych, phase, trialNum) {
   // phase: "practice" | "test" | "example"
   const isPractice = phase === "practice";
@@ -155,16 +190,6 @@ function buildTrialSequence(trial, jsPsych, phase, trialNum) {
       const maskString = "X".repeat(trial.word.length);
       const el = document.getElementById("word-stim");
 
-      // Grab the already-preloaded buzz player now so a wrong-answer sound can
-      // be fired synchronously from the keypress handler during practice.
-      let buzzPlayer = null;
-      if (isPractice) {
-        jsPsych.pluginAPI
-          .getAudioPlayer(FEEDBACK_AUDIO)
-          .then((player) => { buzzPlayer = player; })
-          .catch(() => {});
-      }
-
       // Visual sequence only: target word -> mask -> question mark.
       // These swaps do NOT gate responses. (pluginAPI.setTimeout handles are
       // cleared automatically when the trial ends.)
@@ -186,12 +211,8 @@ function buildTrialSequence(trial, jsPsych, phase, trialNum) {
             info.key === KEY_YES ? "yes" : info.key === KEY_NO ? "no" : null;
 
           // Practice feedback: play the buzz the instant a wrong key lands.
-          if (isPractice && given !== trial.correct_answer && buzzPlayer) {
-            try {
-              buzzPlayer.play();
-            } catch (e) {
-              console.error("Feedback buzz playback failed:", e);
-            }
+          if (isPractice && given !== trial.correct_answer) {
+            playFeedbackBuzz();
           }
 
           jsPsych.finishTrial({ response: info.key, rt: rt });
@@ -245,7 +266,6 @@ function promptForParameters(urlParams) {
       urlParams.get("subject") ||
       urlParams.get("subj") ||
       "";
-    const prefillYes = (urlParams.get("yes_key") || "").trim().toLowerCase();
     const prefillDemo = /^(1|true|yes)$/i.test((urlParams.get("demo") || "").trim());
 
     const overlay = document.createElement("div");
@@ -256,11 +276,14 @@ function promptForParameters(urlParams) {
         <label>Subject code
           <input type="text" name="subjCode" required>
         </label>
-        <label>Response mapping
-          <select name="yesKey">
-            <option value="auto">Auto (counterbalance by subject number)</option>
-            <option value="x">x = YES / m = NO</option>
-            <option value="m">m = YES / x = NO</option>
+        <label>Random seed
+          <input type="text" name="seed" required>
+        </label>
+        <label>Yes key
+          <select name="yesKey" required>
+            <option value="" disabled selected hidden></option>
+            <option value="x">x</option>
+            <option value="m">m</option>
           </select>
         </label>
         <label class="param-check">
@@ -276,22 +299,27 @@ function promptForParameters(urlParams) {
     const form = overlay.querySelector("form");
     const errorEl = overlay.querySelector(".param-error");
     form.subjCode.value = prefillSubj;
-    if (prefillYes === "x" || prefillYes === "m") form.yesKey.value = prefillYes;
     form.demo.checked = prefillDemo;
     form.subjCode.focus();
 
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       const subjCode = form.subjCode.value.trim();
-      if (!subjCode) {
-        errorEl.textContent = "Please enter a subject code.";
-        form.subjCode.focus();
+      const seed = form.seed.value.trim();
+      const yesKey = form.yesKey.value;
+      if (!subjCode || !seed || !yesKey) {
+        errorEl.textContent = "Please fill in all fields.";
+        (!subjCode ? form.subjCode : !seed ? form.seed : form.yesKey).focus();
         return;
       }
+      // Create + unlock the feedback-buzz audio while we have a user gesture.
+      initFeedbackBuzz();
+
       overlay.remove();
       resolve({
         subjectID: subjCode,
-        yesKey: form.yesKey.value, // "auto" | "x" | "m"
+        seed: seed,
+        yesKey: yesKey, // "x" | "m"
         demoMode: form.demo.checked,
       });
     });
@@ -300,7 +328,8 @@ function promptForParameters(urlParams) {
 
 async function runExperiment() {
   const urlParams = new URLSearchParams(window.location.search);
-  const { subjectID, yesKey, demoMode } = await promptForParameters(urlParams);
+  const { subjectID, seed: seedInput, yesKey, demoMode } =
+    await promptForParameters(urlParams);
 
   if (demoMode) {
     const banner = document.createElement("div");
@@ -311,18 +340,11 @@ async function runExperiment() {
     document.body.appendChild(banner);
   }
 
-  const seed = hashStringToSeed(subjectID);
+  // The seed comes straight from the setup box; hashing lets it be any string.
+  const seed = hashStringToSeed(seedInput);
   const rng = mulberry32(seed);
 
-  let useMappingA;
-  if (yesKey === "x" || yesKey === "m") {
-    useMappingA = yesKey === "x";
-  } else {
-    // "auto": counterbalance by the trailing number in the subject code.
-    const digitMatch = subjectID.match(/(\d+)(?!.*\d)/);
-    const subjectNumber = digitMatch ? parseInt(digitMatch[1], 10) : 0;
-    useMappingA = subjectNumber % 2 === 1;
-  }
+  const useMappingA = yesKey === "x";
   KEY_YES = useMappingA ? "x" : "m";
   KEY_NO  = useMappingA ? "m" : "x";
   const keyMappingLabel = useMappingA ? "A" : "B";
@@ -358,13 +380,6 @@ async function runExperiment() {
   }
 
   const timeline = [];
-
-  timeline.push({
-    type: jsPsychPreload,
-    images: [],
-    audio: [FEEDBACK_AUDIO],
-    video: [],
-  });
 
   // Example item shown in the instructions (page 2 flow diagram and the page 5
   // real-time example trial).
