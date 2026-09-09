@@ -9,9 +9,7 @@
   <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2.0.0"></script>
   <script src="https://unpkg.com/@jspsych/plugin-html-button-response@2.0.0"></script>
   <script src="https://unpkg.com/@jspsych/plugin-instructions@2.0.0"></script>
-  <script src="https://unpkg.com/@jspsych/plugin-survey-html-form@2.0.0"></script>
   <script src="https://unpkg.com/@jspsych/plugin-preload@2.0.0"></script>
-  <script src="https://unpkg.com/@jspsych/plugin-audio-keyboard-response@2.0.0"></script>
   <!-- DataPipe plugin (jsPsych-contrib) -->
   <script src="https://unpkg.com/@jspsych-contrib/plugin-pipe@0.6.0"></script>
   <!-- CSV parsing -->
@@ -60,6 +58,61 @@
       font-size: 16px;
       padding: 8px 20px;
       margin: 0 8px;
+    }
+    /* Setup pop-up shown before the experiment starts (replaces URL parameters) */
+    #param-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+    }
+    #param-overlay .param-box {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      width: 360px;
+      max-width: 90vw;
+      padding: 28px 32px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+      font-size: 16px;
+      line-height: 1.4;
+    }
+    #param-overlay h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+    #param-overlay label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-weight: bold;
+    }
+    #param-overlay label.param-check {
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+      font-weight: normal;
+    }
+    #param-overlay input[type="text"],
+    #param-overlay select {
+      font-size: 16px;
+      padding: 8px;
+    }
+    #param-overlay button {
+      margin-top: 4px;
+      padding: 10px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #param-overlay .param-error {
+      color: #b30000;
+      font-size: 14px;
+      min-height: 1em;
     }
   </style>
 </head>
