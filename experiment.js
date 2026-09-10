@@ -281,6 +281,7 @@ function buildFITTimeline(jsPsych, subjectID, demoMode) {
       ...FIT_EXAMPLE_IMAGES.map(
         (src) => `
           <div class="instructions-block">
+            <p class="fit-example-caption">Responding "yes" to a question like this might come from an example experience like this:</p>
             <img class="fit-example-image" src="${src}" alt="Example of a form of inner experience">
           </div>
         `
