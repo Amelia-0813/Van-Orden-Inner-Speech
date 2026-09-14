@@ -232,6 +232,7 @@ function buildFITTimeline(jsPsych, subjectID, rng) {
     key_forward: "ArrowRight",
     key_backward: "ArrowLeft",
     data: { screen: "fit_instructions" },
+    on_start: showCursor,
   });
 
   let globalPromptIndex = 0;
@@ -439,6 +440,7 @@ function buildIRQTimeline(jsPsych, subjectID, rng) {
       </div>
     `,
     data: { screen: "irq_instructions" },
+    on_start: showCursor,
   });
 
   // Item order is randomized from the participant's seed (like every other
@@ -677,6 +679,13 @@ function showPracticeReminder() {
 function hidePracticeReminder() {
   const el = document.getElementById(PRACTICE_REMINDER_ID);
   if (el) el.remove();
+}
+
+// The category task hides the cursor in fullscreen mode to avoid distraction,
+// but the FIT/IRQ questionnaires need it visible again since participants
+// have to click radio buttons and checkboxes.
+function showCursor() {
+  document.body.classList.remove("hide-cursor");
 }
 
 function buildTrialSequence(trial, jsPsych, phase, trialNum) {
