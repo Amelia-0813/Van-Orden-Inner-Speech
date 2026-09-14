@@ -1,11 +1,11 @@
-const CATEGORY_DURATION_MS      = 1000;
-const ISI_DURATION_MS           = 250;
+const CATEGORY_DURATION_MS      = 1200;
+const ISI_DURATION_MS           = 500;
 const WORD_DURATION_MS          = 100;
 const PRACTICE_WORD_DURATION_MS = 100;
 
 const MASK_DURATION_MS          = 300;
 
-const POST_RESPONSE_DELAY_MS    = 500;
+const POST_RESPONSE_DELAY_MS    = 750;
 const NEXT_TRIAL_FIXATION_MS    = 500;
 const MIN_CATEGORY_GAP          = 3;
 
@@ -24,9 +24,11 @@ const DATAPIPE_EXPERIMENT_ID = "vwMy1envtzkv";
 const QUALTRICS_URL = "https://uwmadison.co1.qualtrics.com/jfe/form/SV_cBmgrOhfT6CscD4";
 
 // ---------------------------------------------------------------------------
-// Forms of Inner Thinking (FIT) questionnaire
-// Source: Forms_of_Inner_Thinking (FIT)_v202604.pdf, section A (prompt-based
-// questionnaire) and section B (general frequency estimation).
+// Forms of Inner Thinking (FIT) questionnaire — Section 3 only ("Specific
+// Inner Speaking/Hearing") for now, per current study scope. Blocks 1a/1b/2a/2b
+// from the full instrument (Forms_of_Inner_Thinking (FIT)_v202604.pdf) are not
+// run at the moment; see git history / the PDF if the full instrument needs to
+// come back later.
 // ---------------------------------------------------------------------------
 
 const FIT_LONG_DURATION_MS  = 20000;
@@ -38,54 +40,6 @@ const FIT_BLOCKS = [
     label: "Practice",
     duration: FIT_LONG_DURATION_MS,
     prompts: ["Think about what your ideal work environment would be like"],
-  },
-  {
-    id: "block1a",
-    label: "Thinking (reflexive)",
-    duration: FIT_LONG_DURATION_MS,
-    prompts: [
-      "Think about what you would do on an unexpected day off",
-      "Think about what your perfect weekend would include",
-      "Think about your ideal daily routine",
-      "Think about what you would do if you won the lottery",
-      "Think about what you plan to do tomorrow",
-    ],
-  },
-  {
-    id: "block1b",
-    label: "Thinking (factual)",
-    duration: FIT_LONG_DURATION_MS,
-    prompts: [
-      "Think about the weather in the city you live in",
-      "Think about things that a five-year-old can do for fun",
-      "Think about good oral hygiene habits",
-      "Think about the traffic in the city you live in",
-      "Think about what people usually do on a beach vacation",
-    ],
-  },
-  {
-    id: "block2a",
-    label: "General Inner Speaking",
-    duration: FIT_LONG_DURATION_MS,
-    prompts: [
-      "Imagine talking about the cost of living in your area",
-      "Imagine talking about popular foods in your area",
-      "Imagine talking about activities people typically do on weekends",
-      "Imagine talking about useful skills in life",
-      "Imagine talking about how technology has changed our lives",
-    ],
-  },
-  {
-    id: "block2b",
-    label: "General Inner Hearing",
-    duration: FIT_LONG_DURATION_MS,
-    prompts: [
-      "Imagine hearing someone talk about the nutrients the human body needs",
-      "Imagine hearing someone talk about the neighborhood you live in",
-      "Imagine hearing someone talk about essential preparation for traveling",
-      "Imagine hearing someone talk about how people usually spend their mornings",
-      "Imagine hearing someone talk about good habits to stay healthy",
-    ],
   },
   {
     id: "block3a",
@@ -448,6 +402,196 @@ function buildFITTimeline(jsPsych, subjectID, demoMode) {
   return timeline;
 }
 
+// ---------------------------------------------------------------------------
+// IRQ questionnaire
+// Source: VIS_IRQ_Demographics.qsf, the "Default" block (DataExportTag "IRQ"),
+// a single Qualtrics Matrix/Likert question. Only this block is ported here —
+// the Standard demographics block stays in Qualtrics, after the counterbalanced
+// FIT §3 / IRQ pair. Item order was randomized per participant in the original
+// ("Randomization": "All"); the same is done here via randomize_question_order.
+// ---------------------------------------------------------------------------
+
+const IRQ_LIKERT_LABELS = [
+  "Strongly disagree",
+  "Somewhat disagree",
+  "Neither agree nor disagree",
+  "Somewhat agree",
+  "Strongly agree",
+];
+
+const IRQ_ITEMS = [
+  { name: "Factor1_1", text: "I often enjoy the use of mental pictures to reminisce" },
+  { name: "Factor1_2", text: "I can close my eyes and easily picture a scene I have experienced" },
+  { name: "Factor1_3", text: "My mental images are very vivid and photographic" },
+  { name: "Factor1_4", text: "The old saying 'A picture is worth a thousand words' is certainly true for me" },
+  { name: "Factor1_5", text: "When I think about someone I know well, I instantly see their face in my mind" },
+  { name: "Factor1_6", text: "I rarely use mental images or pictures to help me remember things" },
+  { name: "Factor1_7", text: "My memories are mainly visual in nature" },
+  { name: "Factor1_8", text: "When traveling to get to somewhere I tend to think more verbally than visually" },
+  { name: "Factor1_9", text: "If I talk to myself in my head it is rarely accompanied by visual imagery" },
+  { name: "Factor1_10", text: "If I imagine my memories visually they are more often static than moving" },
+  { name: "Factor2_1", text: "I think about problems in my mind in the form of a conversation with myself" },
+  { name: "Factor2_2", text: "If I am walking somewhere by myself, I rarely have a silent conversation with myself" },
+  { name: "Factor2_3", text: "If I am walking somewhere by myself, I frequently think of conversations that I've recently had" },
+  { name: "Factor2_4", text: "My inner speech helps my imagination" },
+  { name: "Factor2_5", text: "I tend to think things through verbally when I am relaxing" },
+  { name: "Factor2_6", text: "When thinking about a personal problem, I rarely talk it through in my head" },
+  { name: "Factor2_7", text: "I like to give myself some down time to talk through thoughts in my mind" },
+  { name: "Factor2_8", text: "I don't hear words in my 'mind's ear' when I think" },
+  { name: "Factor2_9", text: "I rarely vocalize thoughts in my mind" },
+  { name: "Factor2_10", text: "I often talk to myself internally while watching TV" },
+  { name: "Factor2_11", text: "My memories rarely involve conversations I've had" },
+  { name: "Factor2_12", text: "When I read, I tend to hear a voice in my 'mind's ear'" },
+  { name: "Factor3_1", text: "When I hear someone talking, I see words written down in my mind" },
+  { name: "Factor3_2", text: "I don't see words in my 'mind's eye' when I think" },
+  { name: "Factor3_3", text: "When I am introduced to someone for the first time, I imagine what their name would look like when written down" },
+  { name: "Factor3_4", text: "A strategy I use to help me remember written material is imagining what the writing looks like" },
+  { name: "Factor3_5", text: "I hear a running summary of everything I am doing in my head" },
+  { name: "Factor3_6", text: "I rehearse in my mind how someone might respond to a text message before I send it" },
+  { name: "Factor4_1", text: "I can easily imagine and mentally rotate three-dimensional geometric figures" },
+  { name: "Factor4_2", text: "It is hard for me to imagine this sentence in my mind pronounced unnaturally slowly" },
+  { name: "Factor4_3", text: "In school, I had no problems with geometry" },
+  { name: "Factor4_4", text: "It is easy for me to imagine the sensation of licking a brick" },
+  { name: "Factor4_5", text: "I find it difficult to imagine how a three-dimensional geometric figure would exactly look like when rotated" },
+  { name: "Factor4_6", text: "I can easily imagine someone clearly talking, and then imagine the same voice with a heavy cold" },
+  { name: "Factor4_7", text: "I think I have a large vocabulary in my native language compared to other people" },
+  { name: "Factor4_8", text: "I can easily imagine the sound of a trumpet getting louder" },
+  { name: "catch1", text: "Select the middle option for this item" },
+  { name: "catch2", text: "Five minus two is three" },
+];
+
+// Fixed CSV column order: subjCode + one column per IRQ item, in the item's
+// canonical (non-randomized) order, regardless of the order it was presented in.
+const IRQ_CSV_COLUMNS = ["subjCode", ...IRQ_ITEMS.map((q) => q.name)];
+
+// Builds the IRQ questionnaire section: a short intro, the 38-item Likert
+// matrix (order randomized per participant, matching the original Qualtrics
+// "Randomization: All" setting), and the DataPipe/local-download save of
+// "<subjCode>_IRQ.csv". In demo mode, only the first 6 items are shown.
+function buildIRQTimeline(jsPsych, subjectID, demoMode) {
+  const timeline = [];
+  const items = demoMode ? IRQ_ITEMS.slice(0, 6) : IRQ_ITEMS;
+
+  timeline.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div class="instructions-block">
+        <h2>A few more questions</h2>
+        <p>Please select a response for each statement below. Make sure to read each question carefully.</p>
+        <p>Press any key to continue.</p>
+      </div>
+    `,
+    data: { screen: "irq_instructions" },
+  });
+
+  timeline.push({
+    type: jsPsychSurveyLikert,
+    preamble: `<p>Please select a response for each statement. Make sure to read each question carefully.</p>`,
+    questions: items.map((item) => ({
+      prompt: item.text,
+      name: item.name,
+      labels: IRQ_LIKERT_LABELS,
+      required: true,
+    })),
+    randomize_question_order: true,
+    data: { irqsave: true, screen: "irq_survey", subjCode: SUBJECT_ID },
+  });
+
+  function buildIRQCleanCSV() {
+    const trial = jsPsych.data.get().filter({ irqsave: true }).last(1).trials[0];
+    const row = {};
+    IRQ_CSV_COLUMNS.forEach((c) => {
+      if (c === "subjCode") {
+        row[c] = trial ? trial.subjCode : subjectID;
+      } else {
+        row[c] = trial && trial.response && trial.response[c] !== undefined ? trial.response[c] : "";
+      }
+    });
+    return Papa.unparse([row]);
+  }
+
+  function downloadIRQCSV(filename) {
+    const blob = new Blob([buildIRQCleanCSV()], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  const datapipeConfigured = DATAPIPE_EXPERIMENT_ID !== "REPLACE_WITH_YOUR_DATAPIPE_ID";
+  const irqFilename = demoMode
+    ? `demo_${subjectID}_IRQ_${Date.now()}.csv`
+    : `${subjectID}_IRQ.csv`;
+
+  if (datapipeConfigured) {
+    timeline.push({
+      type: jsPsychPipe,
+      action: "save",
+      experiment_id: DATAPIPE_EXPERIMENT_ID,
+      filename: irqFilename,
+      data_string: () => buildIRQCleanCSV(),
+      on_finish: function (data) {
+        console.log("[DataPipe] IRQ save response:", JSON.stringify(data));
+        const msg = String(
+          (data && (data.message || data.error || data.result)) || ""
+        ).toLowerCase();
+        const looksOk =
+          data &&
+          !data.error &&
+          data.success !== false &&
+          (data.message !== undefined || data.result !== undefined) &&
+          !/error|fail|not accepting|exceed|invalid|denied|missing/.test(msg);
+        if (!looksOk) {
+          console.error(
+            "[DataPipe] IRQ upload did NOT succeed — downloading a local backup instead."
+          );
+          data.datapipe_failed = true;
+          try {
+            downloadIRQCSV(`BACKUP_${irqFilename}`);
+          } catch (e) {
+            console.error("[DataPipe] IRQ local backup also failed:", e);
+          }
+        }
+      },
+    });
+
+    timeline.push({
+      timeline: [
+        {
+          type: jsPsychHtmlKeyboardResponse,
+          stimulus: `<div class="instructions-block"><p>We could not upload your questionnaire data automatically. A copy has been saved to this computer's downloads folder. Please let the researcher know.</p></div>`,
+          choices: "NO_KEYS",
+          trial_duration: 5000,
+        },
+      ],
+      conditional_function: function () {
+        const last = jsPsych.data.get().last(1).trials[0];
+        return Boolean(last && last.datapipe_failed);
+      },
+    });
+  } else {
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `<div class="instructions-block"><p>(Saving a local copy of the questionnaire data to your downloads folder.)</p></div>`,
+      choices: "NO_KEYS",
+      trial_duration: 1500,
+      on_start: function () {
+        try {
+          downloadIRQCSV(irqFilename);
+        } catch (e) {
+          console.error("Local IRQ save failed:", e);
+        }
+      },
+    });
+  }
+
+  return timeline;
+}
+
 function mulberry32(seed) {
   let a = seed;
   return function () {
@@ -557,6 +701,25 @@ function playFeedbackBuzz() {
   } catch (e) {
     console.error("Feedback buzz playback failed:", e);
   }
+}
+
+// Persistent key-press reminder shown at the bottom of the page for the
+// duration of the practice phase. Lives outside jsPsych's own content
+// container, so it survives the per-trial stimulus swaps without needing to
+// be baked into every practice screen's HTML.
+const PRACTICE_REMINDER_ID = "practice-key-reminder";
+
+function showPracticeReminder() {
+  hidePracticeReminder();
+  const el = document.createElement("div");
+  el.id = PRACTICE_REMINDER_ID;
+  el.textContent = `Press "${KEY_YES}" for yes and "${KEY_NO}" for no.`;
+  document.body.appendChild(el);
+}
+
+function hidePracticeReminder() {
+  const el = document.getElementById(PRACTICE_REMINDER_ID);
+  if (el) el.remove();
 }
 
 function buildTrialSequence(trial, jsPsych, phase, trialNum) {
@@ -695,6 +858,14 @@ function promptForParameters(urlParams) {
     const prefillSkipCategory = /^(1|true|yes)$/i.test(
       (urlParams.get("skipCategory") || "").trim()
     );
+    const prefillOrder = /^(irq_first|fit_first)$/i.test(
+      (urlParams.get("questionnaireOrder") || "").trim()
+    )
+      ? urlParams.get("questionnaireOrder").trim().toLowerCase()
+      : "";
+    const prefillFullscreen = /^(1|true|yes)$/i.test(
+      (urlParams.get("fullscreen") || "").trim()
+    );
 
     const overlay = document.createElement("div");
     overlay.id = "param-overlay";
@@ -714,13 +885,24 @@ function promptForParameters(urlParams) {
             <option value="m">m</option>
           </select>
         </label>
+        <label>Questionnaire order
+          <select name="questionnaireOrder" required>
+            <option value="" disabled selected hidden></option>
+            <option value="fit_first">FIT (§3) then IRQ</option>
+            <option value="irq_first">IRQ then FIT (§3)</option>
+          </select>
+        </label>
         <label class="param-check">
           <input type="checkbox" name="demo">
           Demo mode (short ${DEMO_TRIAL_COUNT}-trial run)
         </label>
         <label class="param-check">
           <input type="checkbox" name="skipCategory">
-          Skip category task (go straight to the questionnaire)
+          Skip category task (go straight to the questionnaires)
+        </label>
+        <label class="param-check">
+          <input type="checkbox" name="fullscreen">
+          Fullscreen (maximize + hide cursor during trials)
         </label>
         <div class="param-error"></div>
         <button type="submit">Start</button>
@@ -733,6 +915,8 @@ function promptForParameters(urlParams) {
     form.subjCode.value = prefillSubj;
     form.demo.checked = prefillDemo;
     form.skipCategory.checked = prefillSkipCategory;
+    form.fullscreen.checked = prefillFullscreen;
+    if (prefillOrder) form.questionnaireOrder.value = prefillOrder;
     form.subjCode.focus();
 
     form.addEventListener("submit", (event) => {
@@ -740,21 +924,40 @@ function promptForParameters(urlParams) {
       const subjCode = form.subjCode.value.trim();
       const seed = form.seed.value.trim();
       const yesKey = form.yesKey.value;
-      if (!subjCode || !seed || !yesKey) {
+      const questionnaireOrder = form.questionnaireOrder.value;
+      if (!subjCode || !seed || !yesKey || !questionnaireOrder) {
         errorEl.textContent = "Please fill in all fields.";
-        (!subjCode ? form.subjCode : !seed ? form.seed : form.yesKey).focus();
+        (!subjCode ? form.subjCode : !seed ? form.seed : !yesKey ? form.yesKey : form.questionnaireOrder).focus();
         return;
       }
       // Create + unlock the feedback-buzz audio while we have a user gesture.
       initFeedbackBuzz();
+
+      const demoMode = form.demo.checked;
+      const fullscreenMode = form.fullscreen.checked && !demoMode;
+      // The Fullscreen API requires a user gesture, so it must be requested
+      // here, synchronously within this click handler — not later on, after
+      // the promise resolves and runExperiment() resumes.
+      if (fullscreenMode) {
+        try {
+          document.documentElement.requestFullscreen().catch((e) => {
+            console.error("Could not enter fullscreen:", e);
+          });
+        } catch (e) {
+          console.error("Could not enter fullscreen:", e);
+        }
+        document.body.classList.add("hide-cursor");
+      }
 
       overlay.remove();
       resolve({
         subjectID: subjCode,
         seed: seed,
         yesKey: yesKey, // "x" | "m"
-        demoMode: form.demo.checked,
+        demoMode: demoMode,
         skipCategoryTask: form.skipCategory.checked,
+        questionnaireOrder: questionnaireOrder, // "fit_first" | "irq_first"
+        fullscreenMode: fullscreenMode,
       });
     });
   });
@@ -762,7 +965,7 @@ function promptForParameters(urlParams) {
 
 async function runExperiment() {
   const urlParams = new URLSearchParams(window.location.search);
-  const { subjectID, seed: seedInput, yesKey, demoMode, skipCategoryTask } =
+  const { subjectID, seed: seedInput, yesKey, demoMode, skipCategoryTask, questionnaireOrder, fullscreenMode } =
     await promptForParameters(urlParams);
 
   if (demoMode || skipCategoryTask) {
@@ -788,6 +991,14 @@ async function runExperiment() {
 
   const jsPsych = initJsPsych({
     on_finish: function () {
+      if (fullscreenMode) {
+        document.body.classList.remove("hide-cursor");
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch((e) => {
+            console.error("Could not exit fullscreen:", e);
+          });
+        }
+      }
       const qualtricsConfigured = QUALTRICS_URL !== "REPLACE_WITH_YOUR_QUALTRICS_LINK";
       if (qualtricsConfigured) {
         const redirectURL = new URL(QUALTRICS_URL);
@@ -798,7 +1009,11 @@ async function runExperiment() {
   });
 
   SUBJECT_ID = subjectID;
-  jsPsych.data.addProperties({ subject_id: subjectID, key_mapping: keyMappingLabel });
+  jsPsych.data.addProperties({
+    subject_id: subjectID,
+    key_mapping: keyMappingLabel,
+    questionnaire_order: questionnaireOrder,
+  });
 
   const timeline = [];
 
@@ -978,6 +1193,9 @@ async function runExperiment() {
       choices: "NO_KEYS",
       trial_duration: NEXT_TRIAL_FIXATION_MS,
       data: { screen: "next_trial_fixation", phase: "practice" },
+      on_start: function () {
+        showPracticeReminder();
+      },
     });
 
     practiceTrials.forEach((trial, i) => {
@@ -999,6 +1217,9 @@ async function runExperiment() {
       `,
       choices: ["q"],
       data: { screen: "practice_to_test" },
+      on_start: function () {
+        hidePracticeReminder();
+      },
     });
 
     timeline.push({
@@ -1122,10 +1343,17 @@ async function runExperiment() {
     }
   }
 
-  // FIT (Forms of Inner Thinking) questionnaire: always runs, whether or not
-  // the category task above was skipped, and saves to its own
-  // "<subjCode>_FIT.csv" file separate from the category-task data.
-  timeline.push(...buildFITTimeline(jsPsych, subjectID, demoMode));
+  // FIT (§3) and IRQ questionnaires: always run, whether or not the category
+  // task above was skipped, each saving to its own "<subjCode>_FIT.csv" /
+  // "<subjCode>_IRQ.csv" file. Their order is counterbalanced per participant
+  // via the "Questionnaire order" setup field.
+  const fitTimeline = buildFITTimeline(jsPsych, subjectID, demoMode);
+  const irqTimeline = buildIRQTimeline(jsPsych, subjectID, demoMode);
+  if (questionnaireOrder === "irq_first") {
+    timeline.push(...irqTimeline, ...fitTimeline);
+  } else {
+    timeline.push(...fitTimeline, ...irqTimeline);
+  }
 
   const qualtricsConfigured = QUALTRICS_URL !== "REPLACE_WITH_YOUR_QUALTRICS_LINK";
   timeline.push({
