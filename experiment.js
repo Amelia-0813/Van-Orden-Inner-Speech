@@ -31,15 +31,14 @@ const QUALTRICS_URL = "https://uwmadison.co1.qualtrics.com/jfe/form/SV_cBmgrOhfT
 // come back later.
 // ---------------------------------------------------------------------------
 
-const FIT_LONG_DURATION_MS  = 20000;
 const FIT_SHORT_DURATION_MS = 10000;
 
 const FIT_BLOCKS = [
   {
     id: "practice",
     label: "Practice",
-    duration: FIT_LONG_DURATION_MS,
-    prompts: ["Think about what your ideal work environment would be like"],
+    duration: FIT_SHORT_DURATION_MS,
+    prompts: ["Imagine saying the sentence: Practice is helpful"],
   },
   {
     id: "block3a",
@@ -101,28 +100,12 @@ const FIT_OTHER_EXPERIENCE_OPTIONS = [
   "None of the above",
 ];
 
-const FIT_LIKERT_LABELS = ["Never", "Rarely", "Sometimes", "Often", "Always"];
-
-const FIT_FREQUENCY_QUESTIONS = [
-  { prompt: "How often do you think in words that have sound in your mind?", name: "freq_auditory", labels: FIT_LIKERT_LABELS, required: true },
-  { prompt: "How often do you think in words that have a written form in your mind?", name: "freq_orthographic", labels: FIT_LIKERT_LABELS, required: true },
-  { prompt: "How often do you think in words with imagined movements of your mouth, lips, tongue, or throat?", name: "freq_artic_imagined", labels: FIT_LIKERT_LABELS, required: true },
-  { prompt: "How often do you think in words while physically moving your mouth, lips, tongue, or throat?", name: "freq_artic_real", labels: FIT_LIKERT_LABELS, required: true },
-  { prompt: "How often do you think in words that you say out loud?", name: "freq_artic_outloud", labels: FIT_LIKERT_LABELS, required: true },
-  { prompt: "How often do you think in words without any imagined sound, visual form, or movement?", name: "freq_pure_lexical", labels: FIT_LIKERT_LABELS, required: true },
-  { prompt: "How often do you think in visual images?", name: "freq_visual", labels: FIT_LIKERT_LABELS, required: true },
-  { prompt: "How often do you think in abstract thoughts and ideas (without any words or images)?", name: "freq_concept", labels: FIT_LIKERT_LABELS, required: true },
-];
-
-// Fixed column order for the tidy FIT CSV. Per-prompt rows leave the
-// freq_* columns blank; the 8 frequency-summary rows (one per Section B
-// item) leave the per-prompt columns blank instead.
+// Fixed column order for the tidy FIT CSV, one row per prompt.
 const FIT_CSV_COLUMNS = [
   "subjCode", "block", "block_label", "prompt_index", "prompt",
   "lang_english", "lang_other", "visual", "concept", "eyes",
   "auditory", "orthographic", "artic_outloud", "artic_real", "artic_imagined", "pure_lexical",
   "other_experiences", "other_experiences_text",
-  "freq_question", "freq_response",
 ];
 
 // The 8 example infographics shown during the FIT instructions, matched to
@@ -213,11 +196,10 @@ function buildFITPromptTrials(jsPsych, promptText, durationMs, blockId, blockLab
 
 // Builds the full FIT questionnaire section: instructions with the example
 // images, the prompt/survey loop for every block, the closing frequency
-// survey, and the DataPipe/local-download save of "<subjCode>_FIT.csv".
-// In demo mode, only the practice prompt plus the first prompt of every
-// other block are run, so the whole section can be exercised in under a
-// minute.
-function buildFITTimeline(jsPsych, subjectID, demoMode) {
+// survey, and the DataPipe/local-download save of "<subjCode>_FIT.csv". Runs
+// in full regardless of demo mode — demo mode only shortens the category
+// task; use the "Skip category task" setup option to jump straight here.
+function buildFITTimeline(jsPsych, subjectID, rng) {
   const timeline = [];
 
   timeline.push({
@@ -254,7 +236,7 @@ function buildFITTimeline(jsPsych, subjectID, demoMode) {
 
   let globalPromptIndex = 0;
   FIT_BLOCKS.forEach((block) => {
-    const prompts = demoMode ? block.prompts.slice(0, 1) : block.prompts;
+    const prompts = seededShuffle(block.prompts, rng);
     prompts.forEach((promptText) => {
       globalPromptIndex += 1;
       timeline.push(
@@ -263,18 +245,7 @@ function buildFITTimeline(jsPsych, subjectID, demoMode) {
     });
   });
 
-  timeline.push({
-    type: jsPsychSurveyLikert,
-    preamble: `
-      <h2>A few final questions</h2>
-      <p>Thinking generally about how your mind works (not about the specific prompts above), please answer the following:</p>
-    `,
-    questions: FIT_FREQUENCY_QUESTIONS,
-    data: { fitsave_freq: true, screen: "fit_frequency_survey", subjCode: SUBJECT_ID },
-  });
-
-  // One tidy row per prompt (forms + other-experiences answers), plus one
-  // row per Section B frequency question, all in a single CSV per subject.
+  // One tidy row per prompt (forms + other-experiences answers).
   function buildFITCleanCSV() {
     const byIndex = {};
 
@@ -300,18 +271,6 @@ function buildFITTimeline(jsPsych, subjectID, demoMode) {
 
     const rows = Object.values(byIndex);
 
-    const freqTrial = jsPsych.data.get().filter({ fitsave_freq: true }).last(1).trials[0];
-    if (freqTrial) {
-      FIT_FREQUENCY_QUESTIONS.forEach((q) => {
-        rows.push({
-          subjCode: freqTrial.subjCode,
-          block: "frequency",
-          freq_question: q.prompt,
-          freq_response: freqTrial.response[q.name],
-        });
-      });
-    }
-
     const orderedRows = rows.map((r) => {
       const row = {};
       FIT_CSV_COLUMNS.forEach((c) => { row[c] = r[c] !== undefined ? r[c] : ""; });
@@ -333,9 +292,7 @@ function buildFITTimeline(jsPsych, subjectID, demoMode) {
   }
 
   const datapipeConfigured = DATAPIPE_EXPERIMENT_ID !== "REPLACE_WITH_YOUR_DATAPIPE_ID";
-  const fitFilename = demoMode
-    ? `demo_${subjectID}_FIT_${Date.now()}.csv`
-    : `${subjectID}_FIT.csv`;
+  const fitFilename = `${subjectID}_FIT.csv`;
 
   if (datapipeConfigured) {
     timeline.push({
@@ -407,7 +364,7 @@ function buildFITTimeline(jsPsych, subjectID, demoMode) {
 // Source: VIS_IRQ_Demographics.qsf, the "Default" block (DataExportTag "IRQ"),
 // a single Qualtrics Matrix/Likert question. Only this block is ported here —
 // the Standard demographics block stays in Qualtrics, after the counterbalanced
-// FIT §3 / IRQ pair. Item order was randomized per participant in the original
+// FIT / IRQ pair. Item order was randomized per participant in the original
 // ("Randomization": "All"); the same is done here via randomize_question_order.
 // ---------------------------------------------------------------------------
 
@@ -467,33 +424,35 @@ const IRQ_CSV_COLUMNS = ["subjCode", ...IRQ_ITEMS.map((q) => q.name)];
 // Builds the IRQ questionnaire section: a short intro, the 38-item Likert
 // matrix (order randomized per participant, matching the original Qualtrics
 // "Randomization: All" setting), and the DataPipe/local-download save of
-// "<subjCode>_IRQ.csv". In demo mode, only the first 6 items are shown.
-function buildIRQTimeline(jsPsych, subjectID, demoMode) {
+// "<subjCode>_IRQ.csv". Runs in full regardless of demo mode — demo mode only
+// shortens the category task; use the "Skip category task" setup option to
+// jump straight here.
+function buildIRQTimeline(jsPsych, subjectID, rng) {
   const timeline = [];
-  const items = demoMode ? IRQ_ITEMS.slice(0, 6) : IRQ_ITEMS;
 
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
       <div class="instructions-block">
-        <h2>A few more questions</h2>
-        <p>Please select a response for each statement below. Make sure to read each question carefully.</p>
+        <p>Please select a response for each statement. Make sure to read each question carefully.</p>
         <p>Press any key to continue.</p>
       </div>
     `,
     data: { screen: "irq_instructions" },
   });
 
+  // Item order is randomized from the participant's seed (like every other
+  // random order in this study), rather than jsPsych's own unseeded
+  // randomize_question_order, so a re-run with the same seed is reproducible.
   timeline.push({
     type: jsPsychSurveyLikert,
     preamble: `<p>Please select a response for each statement. Make sure to read each question carefully.</p>`,
-    questions: items.map((item) => ({
+    questions: seededShuffle(IRQ_ITEMS, rng).map((item) => ({
       prompt: item.text,
       name: item.name,
       labels: IRQ_LIKERT_LABELS,
       required: true,
     })),
-    randomize_question_order: true,
     data: { irqsave: true, screen: "irq_survey", subjCode: SUBJECT_ID },
   });
 
@@ -523,9 +482,7 @@ function buildIRQTimeline(jsPsych, subjectID, demoMode) {
   }
 
   const datapipeConfigured = DATAPIPE_EXPERIMENT_ID !== "REPLACE_WITH_YOUR_DATAPIPE_ID";
-  const irqFilename = demoMode
-    ? `demo_${subjectID}_IRQ_${Date.now()}.csv`
-    : `${subjectID}_IRQ.csv`;
+  const irqFilename = `${subjectID}_IRQ.csv`;
 
   if (datapipeConfigured) {
     timeline.push({
@@ -888,8 +845,8 @@ function promptForParameters(urlParams) {
         <label>Questionnaire order
           <select name="questionnaireOrder" required>
             <option value="" disabled selected hidden></option>
-            <option value="fit_first">FIT (§3) then IRQ</option>
-            <option value="irq_first">IRQ then FIT (§3)</option>
+            <option value="fit_first">FIT then IRQ</option>
+            <option value="irq_first">IRQ then FIT</option>
           </select>
         </label>
         <label class="param-check">
@@ -934,7 +891,7 @@ function promptForParameters(urlParams) {
       initFeedbackBuzz();
 
       const demoMode = form.demo.checked;
-      const fullscreenMode = form.fullscreen.checked && !demoMode;
+      const fullscreenMode = form.fullscreen.checked;
       // The Fullscreen API requires a user gesture, so it must be requested
       // here, synchronously within this click handler — not later on, after
       // the promise resolves and runExperiment() resumes.
@@ -1202,7 +1159,7 @@ async function runExperiment() {
       timeline.push(...buildTrialSequence(trial, jsPsych, "practice", i + 1));
     });
 
-    // End of practice -> Stage 2. Advanced by the researcher with "q".
+    // End of practice -> Stage 2. The participant advances themselves.
     // (This transition is not part of the written instructions doc.)
     timeline.push({
       type: jsPsychHtmlKeyboardResponse,
@@ -1212,10 +1169,10 @@ async function runExperiment() {
           <p>You have finished the practice phase. You can now take your headphones off for the rest of the task.</p>
           <p><strong>Stage 2, the experimental phase, will begin next.</strong> There will be no more buzzes. Keep answering as accurately and quickly as you can.</p>
           <p>Remember: press <strong>"${KEY_YES}"</strong> for "yes" and <strong>"${KEY_NO}"</strong> for "no", and respond as soon as the word shows on the screen.</p>
-          <p>Please let the researcher know when you are ready to begin.</p>
+          <p>If you have any questions, please let the researcher know before continuing.</p>
+          <p>Press any key to begin.</p>
         </div>
       `,
-      choices: ["q"],
       data: { screen: "practice_to_test" },
       on_start: function () {
         hidePracticeReminder();
@@ -1343,12 +1300,12 @@ async function runExperiment() {
     }
   }
 
-  // FIT (§3) and IRQ questionnaires: always run, whether or not the category
-  // task above was skipped, each saving to its own "<subjCode>_FIT.csv" /
-  // "<subjCode>_IRQ.csv" file. Their order is counterbalanced per participant
-  // via the "Questionnaire order" setup field.
-  const fitTimeline = buildFITTimeline(jsPsych, subjectID, demoMode);
-  const irqTimeline = buildIRQTimeline(jsPsych, subjectID, demoMode);
+  // FIT and IRQ questionnaires: always run in full, whether or not the
+  // category task above was skipped or demo mode is on, each saving to its
+  // own "<subjCode>_FIT.csv" / "<subjCode>_IRQ.csv" file. Their order is
+  // counterbalanced per participant via the "Questionnaire order" setup field.
+  const fitTimeline = buildFITTimeline(jsPsych, subjectID, rng);
+  const irqTimeline = buildIRQTimeline(jsPsych, subjectID, rng);
   if (questionnaireOrder === "irq_first") {
     timeline.push(...irqTimeline, ...fitTimeline);
   } else {
