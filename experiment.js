@@ -38,7 +38,7 @@ const FIT_BLOCKS = [
     id: "practice",
     label: "Practice",
     duration: FIT_SHORT_DURATION_MS,
-    prompts: ["Imagine saying the sentence: Practice is helpful"],
+    prompts: ["Imagine hearing the sentence: My cat is cute"],
   },
   {
     id: "block3a",
@@ -207,17 +207,14 @@ function buildFITTimeline(jsPsych, subjectID, rng) {
     pages: [
       `
         <div class="instructions-block">
-          <h2>Next: a questionnaire about your inner experience</h2>
-          <p>You will now see a series of short prompts. For each one, take the full time given to actually think about (or imagine) what the prompt describes.</p>
-          <p>Afterward, you will answer a few questions about <strong>how</strong> you experienced that thought — for example, whether it involved words, sounds, images, or something else entirely.</p>
-          <p>There are no right or wrong answers. Please answer as accurately as you can about your own experience.</p>
-          <p>Press "Next" to see some examples of what these questions are asking.</p>
+          <p>You will be asked to imagine saying or hearing a sentence, and then you will be asked some follow-up questions about that experience.</p>
+          <p>Click "Next" to see examples of the different kinds of questions you will be asked about your experience.</p>
         </div>
       `,
       ...FIT_EXAMPLE_IMAGES.map(
         (src) => `
           <div class="instructions-block">
-            <p class="fit-example-caption">Responding "yes" to a question like this might come from an example experience like this:</p>
+            <p class="fit-example-caption">Imagine saying the phrase: My cat is cute</p>
             <img class="fit-example-image" src="${src}" alt="Example of a form of inner experience">
           </div>
         `
