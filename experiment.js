@@ -168,20 +168,28 @@ function buildFITPromptTrials(jsPsych, promptText, durationMs, blockId, blockLab
     },
   };
 
+  // conditional_function only takes effect on a timeline NODE (one wrapping
+  // the trial in its own `timeline: [...]` array) — placing it directly on
+  // the trial object, as a plugin parameter, is silently ignored, so the
+  // trial would run unconditionally every time.
   const otherTextTrial = {
-    type: jsPsychSurveyText,
-    questions: [
-      { prompt: 'You selected "Other" — please briefly describe:', name: "other_experiences_text" },
+    timeline: [
+      {
+        type: jsPsychSurveyText,
+        questions: [
+          { prompt: 'You selected "Other" — please briefly describe:', name: "other_experiences_text" },
+        ],
+        data: {
+          fitsave: true,
+          screen: "fit_other_text",
+          fit_block: blockId,
+          fit_block_label: blockLabel,
+          fit_prompt: promptText,
+          fit_prompt_index: globalPromptIndex,
+          subjCode: SUBJECT_ID,
+        },
+      },
     ],
-    data: {
-      fitsave: true,
-      screen: "fit_other_text",
-      fit_block: blockId,
-      fit_block_label: blockLabel,
-      fit_prompt: promptText,
-      fit_prompt_index: globalPromptIndex,
-      subjCode: SUBJECT_ID,
-    },
     conditional_function: function () {
       const last = jsPsych.data.get().filter({ screen: "fit_other_survey" }).last(1).trials[0];
       return Boolean(
