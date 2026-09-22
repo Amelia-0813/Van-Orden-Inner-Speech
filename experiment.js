@@ -102,7 +102,7 @@ const FIT_OTHER_EXPERIENCE_OPTIONS = [
 
 // Fixed column order for the tidy FIT CSV, one row per prompt.
 const FIT_CSV_COLUMNS = [
-  "subjCode", "block", "block_label", "prompt_index", "prompt",
+  "subjCode", "trial_type", "block", "block_label", "prompt_index", "prompt",
   "lang_english", "lang_other", "visual", "concept", "eyes",
   "auditory", "orthographic", "artic_outloud", "artic_real", "artic_imagined", "pure_lexical",
   "other_experiences", "other_experiences_text",
@@ -259,6 +259,7 @@ function buildFITTimeline(jsPsych, subjectID, rng) {
       if (!byIndex[t.fit_prompt_index]) {
         byIndex[t.fit_prompt_index] = {
           subjCode: t.subjCode,
+          trial_type: "FIT",
           block: t.fit_block,
           block_label: t.fit_block_label,
           prompt_index: t.fit_prompt_index,
@@ -425,7 +426,7 @@ const IRQ_ITEMS = [
 
 // Fixed CSV column order: subjCode + one column per IRQ item, in the item's
 // canonical (non-randomized) order, regardless of the order it was presented in.
-const IRQ_CSV_COLUMNS = ["subjCode", ...IRQ_ITEMS.map((q) => q.name)];
+const IRQ_CSV_COLUMNS = ["subjCode", "trial_type", ...IRQ_ITEMS.map((q) => q.name)];
 
 // Builds the IRQ questionnaire section: a short intro, the 38-item Likert
 // matrix (order randomized per participant, matching the original Qualtrics
@@ -469,6 +470,8 @@ function buildIRQTimeline(jsPsych, subjectID, rng) {
     IRQ_CSV_COLUMNS.forEach((c) => {
       if (c === "subjCode") {
         row[c] = trial ? trial.subjCode : subjectID;
+      } else if (c === "trial_type") {
+        row[c] = "IRQ";
       } else {
         row[c] = trial && trial.response && trial.response[c] !== undefined ? trial.response[c] : "";
       }
