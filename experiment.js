@@ -10,7 +10,7 @@ const NEXT_TRIAL_FIXATION_MS    = 500;
 const MIN_CATEGORY_GAP          = 3;
 
 // ?demo=true runs a short version (DEMO_TRIAL_COUNT random main-phase trials)
-// so the full pipeline, including the DataPipe/OSF upload, can be tested fast.
+// so the full pipeline, including the DataPipe/Google Drive upload, can be tested fast.
 const DEMO_TRIAL_COUNT          = 10;
 
 let KEY_YES = "x";
@@ -19,7 +19,7 @@ let SUBJECT_ID = "";
 
 const FEEDBACK_AUDIO = "buzz.wav";
 
-const DATAPIPE_EXPERIMENT_ID = "vwMy1envtzkv";
+const DATAPIPE_EXPERIMENT_ID = "mwOVgnysyHV2";
 
 const QUALTRICS_URL = "https://uwmadison.co1.qualtrics.com/jfe/form/SV_cBmgrOhfT6CscD4";
 
@@ -769,17 +769,19 @@ function buildTrialSequence(trial, jsPsych, phase, trialNum) {
       jsPsych.pluginAPI.getKeyboardResponse({
         callback_function: (info) => {
           const rt = Math.round(performance.now() - wordOnsetTime);
+          // Lowercase so "X"/"M" (e.g., caps lock on) count the same as "x"/"m".
+          const key = info.key.toLowerCase();
           const given =
-            info.key === KEY_YES ? "yes" : info.key === KEY_NO ? "no" : null;
+            key === KEY_YES ? "yes" : key === KEY_NO ? "no" : null;
 
           // Practice feedback: play the buzz the instant a wrong key lands.
           if (isPractice && given !== trial.correct_answer) {
             playFeedbackBuzz();
           }
 
-          jsPsych.finishTrial({ response: info.key, rt: rt });
+          jsPsych.finishTrial({ response: key, rt: rt });
         },
-        valid_responses: [KEY_YES, KEY_NO],
+        valid_responses: [KEY_YES, KEY_NO, KEY_YES.toUpperCase(), KEY_NO.toUpperCase()],
         rt_method: "performance",
         persist: false,
         allow_held_key: false,
@@ -1272,7 +1274,7 @@ async function runExperiment() {
             console.error(
               "[DataPipe] upload did NOT succeed — downloading a local backup instead. " +
                 "Check: (1) data collection is enabled for this experiment on pipe.jspsych.org, " +
-                "(2) the OSF component is still linked, (3) this filename was not already uploaded, " +
+                "(2) the Google Drive destination is still linked, (3) this filename was not already uploaded, " +
                 "(4) the session limit has not been reached."
             );
             data.datapipe_failed = true;
